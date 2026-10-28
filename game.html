@@ -630,14 +630,8 @@ const UPV=V3(0,1,0), ZAX=V3(0,0,1), _d=V3(), _bx=V3(), _bz=V3(), _m4=new THREE.M
 // stable frame: needle along local y, local z kept facing you so the hands never roll around the needle
 function poseNeedle(n,base,tip){_d.subVectors(tip,base).normalize(); _bx.crossVectors(_d,ZAX).normalize(); _bz.crossVectors(_bx,_d);
   _m4.makeBasis(_bx,_d,_bz); n.quaternion.setFromRotationMatrix(_m4); n.position.copy(tip).addScaledVector(_d,-NH); n.updateMatrix();}
-/* hands gripping the needles, in knitted jumper sleeves */
-const skinMat=M({color:0xd59a78,roughness:.65});
-const sleeveTex=canvasTex(128,128,(g,w,h)=>{g.fillStyle="#cdb48e";g.fillRect(0,0,w,h);
-  for(let x=0;x<w;x+=16)for(let y=0;y<h;y+=12){g.strokeStyle="rgba(90,62,36,.55)";g.lineWidth=3;g.beginPath();g.moveTo(x+2,y+1);g.lineTo(x+8,y+11);g.lineTo(x+14,y+1);g.stroke();
-    g.strokeStyle="rgba(255,240,215,.35)";g.lineWidth=1.5;g.beginPath();g.moveTo(x+3,y+1);g.lineTo(x+8,y+9);g.stroke()}},[2,3]);
-const sleeveMat=M({map:sleeveTex,color:0xffffff,roughness:1});
-const cuffTex=canvasTex(64,32,(g,w,h)=>{g.fillStyle="#bfa47c";g.fillRect(0,0,w,h);for(let x=0;x<w;x+=8){g.fillStyle="rgba(80,55,30,.5)";g.fillRect(x,0,3,h)}},[6,1]);
-const cuffMat=M({map:cuffTex,color:0xffffff,roughness:1});
+/* ---------------- hands: sculpted, posable, gripping the needles ---------------- */
+const skinMat=M({color:0xd59a78,roughness:.65}); // remote knitters' faces
 function limb(g,a,b,r,mat,r2=r,cap=true){
   const d=V3().subVectors(b,a), len=d.length();
   const m=new THREE.Mesh(new THREE.CylinderGeometry(r2,r,len,12),mat);
@@ -645,30 +639,135 @@ function limb(g,a,b,r,mat,r2=r,cap=true){
   if(cap){const j=new THREE.Mesh(new THREE.SphereGeometry(r2,10,8),mat); j.position.copy(b); g.add(j)}
   return m;
 }
-function makeHand(side){
-  // needle-local frame: a = along needle (toward tip), u = up, t = toward you
-  const g=new THREE.Group(), P=(a,u,t)=>V3(side*u,a,t), a0=-0.135;
-  const palm=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),skinMat);
-  palm.position.copy(P(a0-0.008,-0.012,0.032)); palm.scale.set(0.024,0.046,0.04); g.add(palm);
-  // index finger lies along the needle, guiding the yarn
-  limb(g,P(a0+0.03,0.004,0.016),P(a0+0.062,0.013,0.006),0.0078,skinMat,0.0072);
-  limb(g,P(a0+0.062,0.013,0.006),P(a0+0.074,0.012,0.001),0.0072,skinMat,0.0066);
-  // middle, ring and little fingers curl over and behind the needle
-  for(let k=1;k<4;k++){
-    const ak=a0+0.03-k*0.019, r=0.0078-k*0.0006;
-    const kn=P(ak,0.002,0.02); const j1=P(ak+0.004,0.016,0.002); const tip=P(ak+0.006,0.004,-0.014);
-    const kj=new THREE.Mesh(new THREE.SphereGeometry(r*1.1,10,8),skinMat); kj.position.copy(kn); g.add(kj);
-    limb(g,kn,j1,r,skinMat,r*0.95); limb(g,j1,tip,r*0.95,skinMat,r*0.85);
-  }
-  // thumb presses from below
-  limb(g,P(a0+0.004,-0.026,0.03),P(a0+0.03,-0.016,0.014),0.0095,skinMat,0.0088);
-  limb(g,P(a0+0.03,-0.016,0.014),P(a0+0.048,-0.009,0.004),0.0088,skinMat,0.0078);
-  // short wrist only
-  limb(g,P(a0-0.03,-0.014,0.046),P(a0-0.07,-0.04,0.085),0.019,skinMat,0.021,false);
-  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});
-  return g;
+const skinTex=canvasTex(256,256,(g,w,h)=>{
+  g.fillStyle="#e2ab8c"; g.fillRect(0,0,w,h);
+  for(let i=0;i<900;i++){const r=rnd(2,14); g.fillStyle=`rgba(${rnd(180,230)|0},${rnd(110,150)|0},${rnd(95,125)|0},${rnd(.03,.09)})`; g.beginPath(); g.arc(rnd(0,w),rnd(0,h),r,0,7); g.fill()}
+  for(let i=0;i<5000;i++){g.fillStyle=`rgba(120,70,55,${rnd(.04,.12)})`; g.fillRect(rnd(0,w),rnd(0,h),1,1)}
+},[2,2]);
+const skinBump=canvasTex(128,128,(g,w,h)=>{g.fillStyle="#808080";g.fillRect(0,0,w,h);
+  for(let i=0;i<2500;i++){const v=rnd(90,170)|0;g.fillStyle=`rgb(${v},${v},${v})`;g.fillRect(rnd(0,w),rnd(0,h),rnd(1,2),1)}
+  g.strokeStyle="rgba(70,70,70,.5)"; for(let y=10;y<h;y+=14){g.lineWidth=rnd(.5,1.2);g.beginPath();g.moveTo(0,y+rnd(-2,2));for(let x=0;x<=w;x+=16)g.lineTo(x,y+rnd(-2,2));g.stroke()}},[3,3]);
+const handMat=new THREE.MeshStandardMaterial({map:skinTex,bumpMap:skinBump,bumpScale:0.0015,roughness:0.55,color:0xffffff,emissive:0x5a1a0c,emissiveIntensity:0.18});
+const fingerMat=handMat.clone(); fingerMat.vertexColors=true;
+const nailMat=M({color:0xf1cbbd,roughness:.28});
+
+/* a finger as one smooth tube: tapers, swells at the knuckles, rounds off at the pad */
+const RINGS=30, SIDES=12;
+function makeSweep(){
+  const g=new THREE.BufferGeometry(), n=RINGS*SIDES;
+  g.setAttribute("position",new THREE.BufferAttribute(new Float32Array(n*3),3));
+  g.setAttribute("color",new THREE.BufferAttribute(new Float32Array(n*3),3));
+  const uv=new Float32Array(n*2); for(let i=0;i<RINGS;i++)for(let j=0;j<SIDES;j++){uv[(i*SIDES+j)*2]=j/(SIDES-1)*0.5; uv[(i*SIDES+j)*2+1]=i/(RINGS-1)*0.6}
+  g.setAttribute("uv",new THREE.BufferAttribute(uv,2));
+  const idx=[]; for(let i=0;i<RINGS-1;i++)for(let j=0;j<SIDES;j++){const a=i*SIDES+j,b=i*SIDES+(j+1)%SIDES,c=(i+1)*SIDES+j,d=(i+1)*SIDES+(j+1)%SIDES; idx.push(a,c,b,b,c,d)}
+  g.setIndex(idx); return g;
 }
-needleL.add(makeHand(-1)); needleR.add(makeHand(1));
+const _sT=V3(),_sN=V3(),_sB=V3(),_sP=V3();
+function updateSweep(geo,curve,side,r0,joints,flat=0.86){
+  const pos=geo.attributes.position.array, col=geo.attributes.color.array, L=curve.getLength(), tipR=r0*0.8;
+  const tc=1-tipR/L*0.95;
+  for(let i=0;i<RINGS;i++){
+    const t=i/(RINGS-1);
+    curve.getPointAt(t,_sP); curve.getTangentAt(t,_sT);
+    _sN.copy(side).addScaledVector(_sT,-side.dot(_sT)).normalize(); _sB.crossVectors(_sT,_sN);
+    let r=r0*(1-0.2*t), red=0;
+    for(const jt of joints){const k=Math.exp(-(((t-jt)/0.04)**2)); r*=1+0.07*k; red=Math.max(red,k)}
+    if(t>tc){const q=(t-tc)/(1-tc); r*=Math.sqrt(Math.max(0,1-q*q)); red=Math.max(red,0.7)}
+    for(let j=0;j<SIDES;j++){
+      const a=j/SIDES*Math.PI*2, ca=Math.cos(a), sa=Math.sin(a), o=(i*SIDES+j)*3;
+      pos[o]=_sP.x+_sN.x*ca*r+_sB.x*sa*r*flat; pos[o+1]=_sP.y+_sN.y*ca*r+_sB.y*sa*r*flat; pos[o+2]=_sP.z+_sN.z*ca*r+_sB.z*sa*r*flat;
+      col[o]=1; col[o+1]=1-0.1*red; col[o+2]=1-0.12*red;
+    }
+  }
+  geo.attributes.position.needsUpdate=true; geo.attributes.color.needsUpdate=true; geo.computeVertexNormals(); geo.computeBoundingSphere();
+}
+/* superellipsoid: a soft slab for the palm */
+function slab(rx,ry,rz,e=0.55,arch=0){
+  const g=new THREE.SphereGeometry(1,28,20), p=g.attributes.position;
+  for(let i=0;i<p.count;i++){let x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+    const f=v=>Math.sign(v)*Math.pow(Math.abs(v),e); x=f(x)*rx; y=f(y)*ry; z=f(z)*rz;
+    if(z>0) z+=arch*(1-(x/rx)**2)*(1-0.5*(y/ry)**2); p.setXYZ(i,x,y,z)}
+  g.computeVertexNormals(); return g;
+}
+
+/* hand frame: x across the knuckles toward the index, y from wrist to fingertips, z = back of the hand */
+const FINGERS=[ // name, knuckle base, segment lengths, radius, splay
+  {base:[0.027,0.088,0.002],len:[0.04,0.024,0.019],r:0.0092,splay:0.07},
+  {base:[0.009,0.092,0.003],len:[0.044,0.028,0.02],r:0.0095,splay:0.0},
+  {base:[-0.01,0.089,0.002],len:[0.041,0.026,0.019],r:0.009,splay:-0.07},
+  {base:[-0.027,0.081,0.0],len:[0.032,0.02,0.017],r:0.008,splay:-0.15},
+];
+const THUMB={base:[0.033,0.03,-0.008],len:[0.036,0.028,0.024],r:0.0108};
+const GRIP={ // flex at knuckle, middle and end joint (radians toward the palm)
+  idle:[[0.35,0.55,0.3],[1.05,1.35,0.6],[1.1,1.4,0.65],[1.15,1.35,0.6]],
+  thumb:[0.35,0.45,0.35]
+};
+const _ax=V3(),_dir=V3(),_pt=V3();
+function chain(base,lens,flex,axis,dir0){
+  const pts=[V3(...base).addScaledVector(dir0,-0.014)], p=V3(...base), d=dir0.clone(); pts.push(p.clone());
+  for(let i=0;i<3;i++){d.applyAxisAngle(axis,-flex[i]); p.addScaledVector(d,lens[i]); pts.push(p.clone())}
+  return pts;
+}
+function makeRealHand(side){
+  const holder=new THREE.Group(), mirror=new THREE.Group(); mirror.scale.x=side; holder.add(mirror);
+  const hand=new THREE.Group(); mirror.add(hand);
+  const palm=new THREE.Mesh(slab(0.041,0.05,0.0145,0.55,0.007),handMat); palm.position.set(0,0.046,0); hand.add(palm);
+  const thenar=new THREE.Mesh(slab(0.017,0.027,0.013,0.8),handMat); thenar.position.set(0.024,0.028,-0.009); thenar.rotation.z=-0.35; hand.add(thenar);
+  const hypo=new THREE.Mesh(slab(0.012,0.03,0.011,0.8),handMat); hypo.position.set(-0.028,0.04,-0.006); hand.add(hypo);
+  const wrist=new THREE.Mesh(slab(0.03,0.03,0.018,0.8),handMat); wrist.position.set(0,-0.005,0.0); hand.add(wrist);
+  const knuckles=new THREE.Group(); hand.add(knuckles);
+  FINGERS.forEach(f=>{const k=new THREE.Mesh(new THREE.SphereGeometry(f.r*1.05,12,10),handMat); k.position.set(f.base[0],f.base[1]-0.004,f.base[2]+0.004); k.scale.set(1,1,0.8); knuckles.add(k)});
+  const digits=[...FINGERS.map(f=>({f,thumb:false})),{f:THUMB,thumb:true}].map(d=>{
+    const geo=makeSweep(), mesh=new THREE.Mesh(geo,fingerMat); hand.add(mesh);
+    const nail=new THREE.Mesh(new THREE.SphereGeometry(1,12,8),nailMat); hand.add(nail);
+    return {...d,geo,mesh,nail,key:""};
+  });
+  hand.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});
+  // place the hand so the needle runs diagonally across the curled fingers, back of the hand toward you
+  const dN=V3(1.0*side,0.55,0).normalize(), cN=V3(0,0.085,-0.0266);
+  const Dh=V3(0,0,1).addScaledVector(dN,-dN.z).normalize(), Xh=V3().crossVectors(dN,Dh);
+  const A=V3(0,1,0), Dn=V3(side*0.45,0,0.9).normalize(), Xn=V3().crossVectors(A,Dn);
+  const Mh=new THREE.Matrix4().makeBasis(dN,Dh,Xh), Mn=new THREE.Matrix4().makeBasis(A,Dn,Xn);
+  const R=Mn.clone().multiply(Mh.clone().transpose()); holder.quaternion.setFromRotationMatrix(R);
+  const cW=V3(cN.x*side,cN.y,cN.z); // cN as seen through the mirror
+  holder.position.set(0,-0.125,0).sub(cW.applyQuaternion(holder.quaternion));
+  return {holder,digits,side,pose:null};
+}
+function poseHand(h,grip,thumbFlex){
+  for(let i=0;i<h.digits.length;i++){
+    const d=h.digits[i], f=d.f, flex=d.thumb?thumbFlex:grip[i];
+    const key=flex.map(v=>v.toFixed(3)).join(","); if(key===d.key) continue; d.key=key;
+    let axis, dir0;
+    if(d.thumb){dir0=V3(0.55,0.6,-0.58).normalize(); axis=V3(0.35,-0.3,0.88).normalize()}
+    else{dir0=V3(-Math.sin(f.splay),Math.cos(f.splay),0); axis=V3(Math.cos(f.splay),Math.sin(f.splay),0)}
+    const pts=chain(f.base,f.len,flex,axis,dir0), curve=new THREE.CatmullRomCurve3(pts,false,"centripetal");
+    const L=curve.getLength(), lsum=f.len[0]+f.len[1]+f.len[2]+0.014;
+    const joints=[(0.014+f.len[0])/lsum,(0.014+f.len[0]+f.len[1])/lsum].map(v=>Math.min(1,v*lsum/L));
+    updateSweep(d.geo,curve,axis,f.r,joints,d.thumb?0.9:0.84);
+    // nail sits on the back of the last segment
+    const tN=0.88, P=curve.getPointAt(tN), T=curve.getTangentAt(tN);
+    const back=V3().crossVectors(T,axis).normalize(); if(d.thumb) back.negate();
+    const rr=f.r*0.8;
+    d.nail.position.copy(P).addScaledVector(back,rr*0.86);
+    d.nail.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(V3().crossVectors(T,back),T,back));
+    d.nail.scale.set(rr*0.78,rr*1.05,rr*0.22);
+  }
+}
+const handL=makeRealHand(-1), handR=makeRealHand(1);
+needleL.add(handL.holder); needleR.add(handR.holder);
+const GL=GRIP.idle.map(a=>a.slice()), GR=GRIP.idle.map(a=>a.slice()), TL=GRIP.thumb.slice(), TR=GRIP.thumb.slice();
+poseHand(handL,GL,TL); poseHand(handR,GR,TR);
+function animateGrip(p,t){
+  // right index lifts to throw the yarn while wrapping; all fingers squeeze a little as the loop is pulled through
+  const wrap=p>0.28&&p<0.62?Math.sin((p-0.28)/0.34*Math.PI):0, pull=p>0.58&&p<0.9?Math.sin((p-0.58)/0.32*Math.PI):0;
+  const breathe=Math.sin(t*0.9)*0.03;
+  for(let i=0;i<4;i++)for(let j=0;j<3;j++){
+    GR[i][j]=GRIP.idle[i][j]+(i===0?-0.45*wrap*(j===0?1:0.6):0)+0.12*pull+breathe*0.5;
+    GL[i][j]=GRIP.idle[i][j]+0.06*pull-breathe*0.5;
+  }
+  for(let j=0;j<3;j++){TR[j]=GRIP.thumb[j]+0.15*pull; TL[j]=GRIP.thumb[j]+0.08*pull}
+  poseHand(handR,GR,TR); poseHand(handL,GL,TL);
+}
 needleL.traverse(o=>{if(o.isMesh)o.castShadow=true}); needleR.traverse(o=>{if(o.isMesh)o.castShadow=true});
 const RANK0=0.03, RANKSTEP=0.017;
 const onNeedle=(n,rank,out)=>out.set(0,NH-RANK0-rank*RANKSTEP,0).applyMatrix4(n.matrix);
@@ -869,6 +968,7 @@ function animateHands(dt,t,sway){
   newLoop.visible=nl>0.02;
   if(newLoop.visible){onNeedle(needleR,0,newLoop.position);newLoop.quaternion.copy(_qR);newLoop.scale.setScalar(0.5+0.5*nl)}
 
+  animateGrip(p,t);
   updateFabric(t,dt); updateYarn(p,t);
 }
 
