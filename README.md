@@ -2,6 +2,8 @@
 
 A cosy first-person knitting game in three.js. Sit by a crackling cabin fire and knit a scarf by swiping the path of the needle tip: insert, wrap, pull through, slip off.
 
+Keep a rhythm for combos (×5 in full flow), keep the fire fed, and knit the orders that come in: a scarf for the cat, a tea cosy, mittens for the postie. Everything you finish appears in the cabin. Expect company: a moth, an owl, a yarn-thieving cat, dropped stitches, and a bear that comes through the window.
+
 Play alone, or join a **knitting circle**: up to five players share the cabin, sit in armchairs around the fire, watch each other's needles move live, and every finished row is added to one shared circle blanket that stays in the room.
 
 ## Project layout

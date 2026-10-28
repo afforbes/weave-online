@@ -37,9 +37,30 @@ body{background:var(--night);color:var(--wool);font-family:var(--body);overflow:
 .stats{display:flex;gap:14px;font-variant-numeric:tabular-nums;text-align:right}
 .stat b{display:block;font-family:var(--display);font-size:1.25rem;line-height:1;color:var(--wool)}
 .stat span{font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--wool-dim)}
-.stat.streak b{color:var(--ember)}
+.stat.combo b{color:var(--wool-dim)} .stat.combo.hot b{color:var(--ember);text-shadow:0 0 14px rgba(255,160,80,.8)}
+.stat b.pop{animation:pop .35s ease-out} @keyframes pop{0%{transform:scale(1)}30%{transform:scale(1.35)}100%{transform:scale(1)}}
+.fire-meter{display:flex;align-items:center;gap:6px;margin-top:8px;font-family:var(--body);font-weight:600;font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--wool-dim)}
+.fire-meter i{display:block;width:84px;height:7px;border-radius:4px;background:rgba(255,220,180,.12);overflow:hidden}
+.fire-meter b{display:block;height:100%;background:linear-gradient(90deg,#c84a1a,var(--ember));transform-origin:left;transition:transform .4s}
+.fire-meter.low b{background:#6f8fb8} .fire-meter.low{color:#9fb4d4}
+.bottom-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:auto;min-width:0}
+.btns{display:flex;gap:8px;align-items:center}
+.stoke{font:800 .85rem var(--display);color:#2a160b;background:var(--ember);border:0;border-radius:999px;padding:10px 14px;cursor:pointer;box-shadow:0 4px 0 #b8622a;animation:beckon 1.2s ease-in-out infinite}
+.stoke:active{transform:translateY(2px);box-shadow:0 2px 0 #b8622a} @keyframes beckon{50%{transform:scale(1.06)}}
+.order{display:flex;flex-direction:column;gap:3px;padding:8px 12px;border-radius:14px;background:var(--bark);border:1px solid var(--bark-line);max-width:220px;text-align:right}
+.order em{font-style:normal;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--moss)}
+.order b{font-family:var(--display);font-size:.9rem;line-height:1.15;color:var(--wool)}
+.obar{display:flex;align-items:center;gap:6px;justify-content:flex-end;font-size:.66rem;color:var(--wool-dim);font-variant-numeric:tabular-nums}
+.obar i{display:block;width:60px;height:6px;border-radius:3px;background:rgba(255,220,180,.12);overflow:hidden}
+.obar b{display:block;height:100%;background:var(--moss);transform-origin:left;transition:transform .3s;font-size:0}
+.opts{color:var(--ember);font-weight:700}
+#cold,#flow{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .4s}
+#cold{background:radial-gradient(ellipse at 50% 50%,rgba(120,160,220,.08) 30%,rgba(40,70,120,.55) 100%);mix-blend-mode:screen}
+#flow{background:radial-gradient(ellipse at 50% 60%,transparent 55%,rgba(255,150,60,.35) 100%);animation:breathe 2.2s ease-in-out infinite} @keyframes breathe{50%{filter:brightness(1.4)}}
+.glyph.pop{animation:gpop .3s ease-out} @keyframes gpop{30%{transform:scale(1.18)}}
+@media (prefers-reduced-motion: reduce){.stoke,#flow{animation:none}}
 
-.card{position:fixed;left:50%;transform:translateX(-50%);top:calc(66px + env(safe-area-inset-top,0px));
+.card{position:fixed;left:50%;transform:translateX(-50%);top:calc(86px + env(safe-area-inset-top,0px));
   pointer-events:none;display:flex;align-items:center;gap:12px;padding:10px 14px 10px 10px;
   background:var(--bark);border:1px solid var(--bark-line);border-radius:18px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
   box-shadow:0 8px 30px rgba(0,0,0,.35)}
@@ -73,7 +94,7 @@ body{background:var(--night);color:var(--wool);font-family:var(--body);overflow:
 
 .card.danger{border-color:rgba(240,110,90,.6);box-shadow:0 0 0 2px rgba(200,40,30,.35),0 8px 30px rgba(0,0,0,.45)}
 .card.danger .card-name{color:var(--rose)}
-.fight{position:fixed;left:50%;transform:translateX(-50%);top:calc(176px + env(safe-area-inset-top,0px));display:flex;align-items:center;gap:14px;
+.fight{position:fixed;left:50%;transform:translateX(-50%);top:calc(196px + env(safe-area-inset-top,0px));display:flex;align-items:center;gap:14px;
   padding:8px 14px;border-radius:14px;background:var(--bark);border:1px solid rgba(240,110,90,.4);pointer-events:none}
 .fbar{display:flex;align-items:center;gap:8px;font-size:.66rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--wool-dim)}
 .fbar i{display:block;width:110px;height:8px;border-radius:4px;background:rgba(255,220,180,.12);overflow:hidden}
@@ -141,15 +162,17 @@ body{background:var(--night);color:var(--wool);font-family:var(--body);overflow:
 </style>
 
 <canvas id="scene" aria-hidden="true"></canvas>
-<div id="warm" aria-hidden="true"></div><div id="vignette" aria-hidden="true"></div>
+<div id="warm" aria-hidden="true"></div><div id="cold" aria-hidden="true"></div><div id="flow" aria-hidden="true"></div><div id="vignette" aria-hidden="true"></div>
 <canvas id="trail" aria-label="Knitting area: swipe the shape shown on the stitch card"></canvas>
 
 <div class="hud top">
-  <div class="wordmark">Weave Online<small id="patternLabel">Garter stitch</small></div>
+  <div class="wordmark">Weave Online<small id="patternLabel">Garter stitch</small>
+    <div class="fire-meter" id="fireMeter" aria-label="Fire warmth"><span>Fire</span><i><b id="fireBar"></b></i></div>
+  </div>
   <div class="stats">
-    <div class="stat"><b id="stStitches">0</b><span>Stitches</span></div>
-    <div class="stat"><b id="stRows">0</b><span>Rows</span></div>
-    <div class="stat streak"><b id="stStreak">0</b><span>Streak</span></div>
+    <div class="stat"><b id="stScore">0</b><span>Score</span></div>
+    <div class="stat combo"><b id="stCombo">—</b><span>Combo</span></div>
+    <div class="stat"><b id="stBest">0</b><span>Best</span></div>
   </div>
 </div>
 
@@ -186,15 +209,21 @@ body{background:var(--night);color:var(--wool);font-family:var(--body);overflow:
     </div>
     <div class="swatches" id="swatches" role="group" aria-label="Yarn colour"></div>
   </div>
+  <div class="bottom-right">
+    <div class="order" id="order"><em>Order</em><b id="orderName">Settle in first</b><div class="obar"><i><b id="orderBar"></b></i><span id="orderProg"></span><span class="opts" id="orderPts"></span></div></div>
+    <div class="btns">
+    <button class="stoke" id="stokeBtn" hidden>🪵 Stoke the fire</button>
   <button class="icon-btn" id="soundBtn" aria-label="Sound on" aria-pressed="true">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path id="soundWave" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
   </button>
+    </div>
+  </div>
 </div>
 
 <div class="intro" id="intro">
   <div class="intro-inner">
     <h1>Weave Online</h1>
-    <p>Pull your chair up to the fire. Each stitch is one swipe that traces the needle tip: push it into the loop, wrap the yarn, pull it through, slip it off. Your needles move as you draw.</p>
+    <p>Pull your chair up to the fire. Each stitch is one swipe that traces the needle tip. Keep a rhythm for combos, keep the fire fed, and knit the orders that come in: the cabin fills up with what you make. Watch the window.</p>
     <div class="legend" id="legend"></div>
     <form class="join" id="joinForm">
       <div class="field"><label for="nameInput">Your name</label><input id="nameInput" maxlength="16" autocomplete="nickname" spellcheck="false"></div>
@@ -380,7 +409,11 @@ function renderCard(){
   $("queue").innerHTML="<em>Next</em>"+rest.map(q=>`<svg viewBox="0 0 100 100" aria-label="${STITCH[q].name}"><path d="${glyphPath(q,10).d}"/></svg>`).join("");
   $("cRow").textContent=`Row ${state.rowNum+1} · stitch ${state.cur.length+1} of ${PER_ROW}`;
   $("patternLabel").textContent=pattern().name;
-  $("stStitches").textContent=state.stitches; $("stRows").textContent=state.rowNum; $("stStreak").textContent=streak;
+  renderStats();
+  const ev=GAME.ev, et=eventGestureType();
+  if(et){const g2=glyphPath(et); $("gGhost").setAttribute("d",g2.d); $("gLive").setAttribute("d",g2.d); $("gArrow").setAttribute("d",g2.arrow); $("gStart").setAttribute("cx",g2.start[0]); $("gStart").setAttribute("cy",g2.start[1]);
+    $("cName").textContent=ev.name==="thief"?"Reel it in!":"Catch it!"; $("phases").innerHTML=`<span class="on">${STITCH[et].name} move</span><span>${ev.name==="thief"?(ev.need-ev.got)+" to go":"Quick"}</span>`; $("queue").innerHTML=""; $("cRow").textContent=ev.name==="thief"?"Before the cat gets bored":"Before it unravels"; $("card").classList.add("danger")}
+  else $("card").classList.remove("danger");
 }
 let toastTimer;
 function toast(msg,sub="",miss=false){
@@ -1308,7 +1341,7 @@ function renderFightCard(){
 const pickTarget=()=>{const ks=["K","P","O","C"].filter(k=>k!==BEAR.target);BEAR.target=ks[Math.random()*ks.length|0]};
 
 function startBear(){
-  BEAR.phase="enter"; BEAR.t=0; BEAR.hp=BEAR.maxHp; BEAR.you=BEAR.maxYou; BEAR.rear=0; BEAR.dieT=0; BEAR.flinch=0; BEAR.strike=0; BEAR.wind=0;
+  BEAR.phase="enter"; BEAR.t=0; BEAR.maxHp=6+GAME.bears*2; BEAR.hp=BEAR.maxHp; BEAR.swipeGap=Math.max(2.2,3.4-GAME.bears*0.4); if(GAME.ev) endEvent(true,null); BEAR.you=BEAR.maxYou; BEAR.rear=0; BEAR.dieT=0; BEAR.flinch=0; BEAR.strike=0; BEAR.wind=0;
   gest.mode="retreat"; stroke=null;
   bear.visible=true; bear.rotation.set(0,0,0); bear.position.set(wx,1.1,wz-0.7); BEAR.from.copy(bear.position);
   BEAR.to.set(wx+0.25,0,-1.75);
@@ -1319,17 +1352,17 @@ function startBear(){
   renderFightCard(); renderFightHud(); toast("A bear!","It smashed through the window",true);
 }
 function bearStab(q){
-  BEAR.hp--; BEAR.flinch=1; BEAR.lunge=1; BEAR.shake=Math.max(BEAR.shake,0.25); stabSfx();
+  BEAR.hp--; BEAR.flinch=1; BEAR.lunge=1; BEAR.shake=Math.max(BEAR.shake,0.25); stabSfx(); bumpCombo(); addScore(150*GAME.mult); sparkle(10,"#7a0808",1.2);
   // wound on the chest, and spray toward you and the floor
   const w=new THREE.Mesh(SPH,bloodDark); w.position.set(rnd(-0.22,0.22),rnd(0.0,0.3),0.62+rnd(-0.05,0.05)); w.scale.set(0.035,0.05,0.012); torso.add(w); wounds.push(w);
   const at=new THREE.Vector3(); w.getWorldPosition(at); const dir=new THREE.Vector3().subVectors(camera.position,at).setY(0).normalize().multiplyScalar(0.8);
   bleed(at,dir,22);
   BEAR.swipeAt=Math.max(BEAR.swipeAt,BEAR.t+1.6); BEAR.wind=0;
-  if(BEAR.hp<=0){BEAR.phase="dying"; BEAR.t=0; roar(2.2,0.7,0.5); toast("Got it!","The bear staggers",false); renderFightHud(); renderFightCard(); return}
+  if(BEAR.hp<=0){BEAR.phase="dying"; BEAR.t=0; roar(2.2,0.7,0.5); GAME.slow=0.9; const kb=2000*GAME.mult; addScore(kb); GAME.bears++; toast("Got it!",`+${kb.toLocaleString()} · the bear staggers`,false); renderFightHud(); renderFightCard(); return}
   toast(q==="Perfect"?"Deep stab!":"Stab!",`${BEAR.hp} more`); pickTarget(); renderFightCard(); renderFightHud();
 }
 function bearHitsYou(){
-  BEAR.you--; BEAR.shake=1; hurtSfx(); const h=$("hurt"); h.classList.remove("on"); void h.offsetWidth; h.classList.add("on");
+  BEAR.you--; BEAR.shake=1; hurtSfx(); breakCombo("The bear got you"); const h=$("hurt"); h.classList.remove("on"); void h.offsetWidth; h.classList.add("on");
   if(BEAR.you<=0){
     BEAR.phase="win"; BEAR.t=0; gest.mode="retreat"; stroke=null; roar(2,1.1,0.6);
     const ko=$("ko"); ko.hidden=false; ko.classList.add("on"); renderFightHud(); return;
@@ -1337,7 +1370,7 @@ function bearHitsYou(){
   toast("Ouch!",`${BEAR.you} ${BEAR.you===1?"life":"lives"} left`,true); renderFightHud();
 }
 function stopBear(){
-  bear.visible=false; BEAR.phase="none"; BEAR.triggerAt=BEAR.clock+25; BEAR.you=BEAR.maxYou;
+  bear.visible=false; BEAR.phase="none"; BEAR.triggerAt=BEAR.clock+9999; BEAR.you=BEAR.maxYou;
   $("card").classList.remove("danger"); renderFightHud(); renderCard();
 }
 const _bv=new THREE.Vector3(), _cam=new THREE.Vector3();
@@ -1380,7 +1413,7 @@ function bearTick(dt,t){
     torso.position.y=Math.sin(t*2.2)*0.02; legBL.rotation.x=legBR.rotation.x=0.15;
     const toSwipe=BEAR.swipeAt-BEAR.t;
     BEAR.wind=toSwipe<0.9?1-Math.max(0,toSwipe)/0.9:0;
-    if(toSwipe<=0){BEAR.strike=1; whoosh(); bearHitsYou(); BEAR.swipeAt=BEAR.t+rnd(3.4,4.4); BEAR.wind=0}
+    if(toSwipe<=0){BEAR.strike=1; whoosh(); bearHitsYou(); BEAR.swipeAt=BEAR.t+rnd(BEAR.swipeGap,BEAR.swipeGap+1); BEAR.wind=0}
     BEAR.strike=Math.max(0,BEAR.strike-dt*3.5);
     const raise=-1.25, w=BEAR.wind, st=Math.sin(BEAR.strike*Math.PI);
     legFR.rotation.set(raise-0.9*w+0.8*st, 0, 0.9*w-1.4*st);
@@ -1414,6 +1447,218 @@ function bearTick(dt,t){
   if(BEAR.phase==="fight"||BEAR.phase==="enter"||BEAR.phase==="charge"){} // focus handled above
 }
 
+/* ---------------- game layer: score, combo & flow, the fire, orders, events, music ---------------- */
+const QPTS={Perfect:100,Neat:60,Snug:30};
+let best=0; try{best=+localStorage.getItem("weave-best")||0}catch(e){}
+const GAME={score:0,shown:0,combo:0,comboT:0,mult:1,flow:0,fire:1,stokeCd:0,cold:0,timeScale:1,slow:0,best,
+  order:null,orderIdx:0,orderRows:0,orderDone:0,ev:null,evNext:22,evT:0,bears:0,tapped:0};
+const comboMult=c=>Math.min(5,1+Math.floor(c/5));
+function addScore(n,why){
+  GAME.score+=Math.round(n); if(GAME.score>GAME.best){GAME.best=GAME.score; try{localStorage.setItem("weave-best",String(GAME.best))}catch(e){}}
+  const el=$("stScore"); el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop");
+}
+function bumpCombo(){
+  GAME.combo++; GAME.comboT=0; const m=comboMult(GAME.combo);
+  if(m>GAME.mult){GAME.mult=m; toast(`×${m} combo!`,m>=5?"Full flow":"Keep the rhythm"); [660,880,1100].slice(0,m).forEach((f,i)=>tone(f,0.5,0.06,"sine",i*0.07))}
+  renderStats();
+}
+function breakCombo(why){
+  if(GAME.combo>=5){toast("Combo lost",why||"",true); tone(220,0.3,0.06,"triangle"); tone(165,0.4,0.05,"triangle",0.1)}
+  GAME.combo=0; GAME.mult=1; renderStats();
+}
+function renderStats(){
+  $("stScore").textContent=GAME.shown.toLocaleString(); $("stBest").textContent=GAME.best.toLocaleString();
+  const c=$("stCombo"); c.textContent=GAME.combo>1?`${GAME.combo} ×${GAME.mult}`:"—"; c.parentElement.classList.toggle("hot",GAME.combo>=10);
+  $("fireBar").style.transform=`scaleX(${GAME.fire.toFixed(3)})`; $("fireMeter").classList.toggle("low",GAME.fire<0.35);
+  $("stokeBtn").hidden=!(started&&GAME.fire<0.55&&GAME.stokeCd<=0&&!bearActive());
+}
+
+/* sparkles from the needle tip */
+const SPARK=[], sparkMat=new THREE.SpriteMaterial({map:glowTex,color:0xffe6b0,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false});
+function sparkle(n,col,big=1){
+  const tip=onNeedle(needleR,0,new THREE.Vector3());
+  for(let i=0;i<n;i++){let s=SPARK.length<90?null:SPARK.shift(); if(!s){s=new THREE.Sprite(sparkMat.clone()); s.userData={v:new THREE.Vector3(),life:0}; hands.add(s)}
+    s.material.color.set(col); s.position.copy(tip); s.userData.life=1; s.userData.v.set(rnd(-1,1),rnd(0.3,1.6),rnd(-1,1)).multiplyScalar(0.12*big); s.scale.setScalar(rnd(0.012,0.03)*big); s.visible=true; SPARK.push(s)}
+}
+function tickSparks(dt){for(const s of SPARK){if(!s.visible)continue; s.userData.life-=dt*1.8; if(s.userData.life<=0){s.visible=false;continue}
+  s.userData.v.y-=0.25*dt; s.position.addScaledVector(s.userData.v,dt); s.material.opacity=s.userData.life}}
+
+/* ---- the fire you keep alive ---- */
+const FIRE_DECAY=1/110;
+const logFly={m:null,t:-1};
+function stoke(){
+  if(GAME.stokeCd>0||bearActive()) return; GAME.stokeCd=4;
+  if(!logFly.m){logFly.m=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.45,8),M({map:woodTex,color:0x8a5a3a})); logFly.m.castShadow=true; scene.add(logFly.m)}
+  logFly.t=0; logFly.m.visible=true; whoosh(); renderStats();
+}
+const _lf=new THREE.Vector3(), _lt=new THREE.Vector3();
+function tickFire(dt){
+  if(!started) return;
+  GAME.fire=Math.max(0,GAME.fire-FIRE_DECAY*dt*(bearActive()?0:1)); GAME.stokeCd=Math.max(0,GAME.stokeCd-dt);
+  if(logFly.t>=0){logFly.t+=dt*1.4; const k=Math.min(1,logFly.t);
+    hearth.localToWorld(_lf.set(-1.3,0.2,-2.3)); hearth.localToWorld(_lt.set(0,0.25,-2.7));
+    logFly.m.position.lerpVectors(_lf,_lt,k); logFly.m.position.y+=Math.sin(k*Math.PI)*0.6; logFly.m.rotation.set(k*6,0.3,k*4);
+    if(k>=1){logFly.t=-1; logFly.m.visible=false; GAME.fire=Math.min(1,GAME.fire+0.45); flare=1.2; creak(0.6,0.7);
+      for(let i=0;i<EMB;i++){emb[i].life=0;embPos[i*3]=rnd(-.3,.3);embPos[i*3+1]=0.3;embPos[i*3+2]=-2.66;emb[i].vx=rnd(-.3,.3);emb[i].vy=rnd(.6,1.4)}
+      toast("The fire roars","+0.45 warmth"); renderStats()}
+  }
+  const cold=GAME.fire<0.35?1-GAME.fire/0.35:0; GAME.cold+=(cold-GAME.cold)*Math.min(1,dt*2);
+  if(GAME.fire<=0&&!GAME.fireOut){GAME.fireOut=true; toast("The fire's gone out","Stoke it, quick",true); breakCombo("Too cold")}
+  if(GAME.fire>0.2) GAME.fireOut=false;
+  coldEl.style.opacity=(GAME.cold*0.85).toFixed(3);
+}
+
+/* ---- orders: knit things for the cabin ---- */
+const ORDERS=[
+  {name:"A scarf for the cat",rows:3,pts:800,hint:"3 rows",place:"cat"},
+  {name:"A cosy for the tea mug",rows:2,pts:500,hint:"2 rows",place:"mug"},
+  {name:"A cushion for the armchair",rows:3,pts:900,hint:"3 rows",place:"chair"},
+  {name:"Mittens for the postie",rows:4,pts:1300,hint:"4 rows",place:"mantel"},
+  {name:"Bed socks for a cold night",rows:3,pts:1000,hint:"3 rows",place:"shelf"},
+  {name:"A bobble hat",rows:4,pts:1500,hint:"4 rows",place:"bear"},
+];
+const knitTexCache={};
+function knitTexFor(hex){ if(knitTexCache[hex]) return knitTexCache[hex];
+  return knitTexCache[hex]=canvasTex(128,128,(g,w,h)=>{g.fillStyle=shade(hex,-.15);g.fillRect(0,0,w,h);
+    for(let x=0;x<w;x+=16)for(let y=0;y<h;y+=12){g.strokeStyle=shade(hex,-.5);g.lineWidth=3;g.beginPath();g.moveTo(x+2,y+1);g.lineTo(x+8,y+11);g.lineTo(x+14,y+1);g.stroke();
+      g.strokeStyle=shade(hex,.35);g.lineWidth=1.5;g.beginPath();g.moveTo(x+3,y+1);g.lineTo(x+8,y+9);g.stroke()}},[3,3])}
+const rewards=[];
+function placeReward(o,hex){
+  const mat=M({map:knitTexFor(hex),roughness:1}), g=new THREE.Group(); let bounce=true;
+  const sh=(m)=>{m.castShadow=m.receiveShadow=true; return m};
+  switch(o.place){
+    case "cat": g.add(sh(new THREE.Mesh(new THREE.TorusGeometry(0.075,0.028,8,20),mat))); g.position.set(0.17,0.1,0.07); g.rotation.set(1.2,0,0.3);
+      const tail=sh(new THREE.Mesh(new THREE.BoxGeometry(0.04,0.14,0.012),mat)); tail.position.set(0.07,-0.07,0.05); g.add(tail); cat.add(g); break;
+    case "mug": g.add(sh(new THREE.Mesh(new THREE.CylinderGeometry(0.058,0.053,0.1,16,1,true),mat))); g.position.set(MUG.x,MUG.y+0.005,MUG.z); scene.add(g); break;
+    case "chair": g.add(sh(new THREE.Mesh(new THREE.BoxGeometry(0.34,0.1,0.34),mat))); g.position.set(0,0.57,-0.42); g.rotation.y=0.2; const b=sh(new THREE.Mesh(new THREE.SphereGeometry(0.03,8,6),mat)); b.position.y=0.06; g.add(b); scene.add(g); break;
+    case "mantel": for(const sx of [-1,1]){const m=sh(new THREE.Mesh(new THREE.SphereGeometry(0.045,10,8),mat)); m.scale.set(0.8,1.2,0.5); m.position.set(sx*0.07,0,0); g.add(m);
+        const th=sh(new THREE.Mesh(new THREE.SphereGeometry(0.02,8,6),mat)); th.position.set(sx*0.11,0.02,0); g.add(th)} g.position.set(0.2,1.0,-2.3); hearth.add(g); break;
+    case "shelf": for(const sx of [0,1]){const m=sh(new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.035,0.16,10),mat)); m.position.set(sx*0.08,0,0); m.rotation.x=0.3; g.add(m);
+        const f=sh(new THREE.Mesh(new THREE.SphereGeometry(0.035,8,6),mat)); f.position.set(sx*0.08,-0.09,0.04); f.scale.set(1,0.7,1.4); g.add(f)} g.position.set(BX+0.15,1.1,BZ+0.05); scene.add(g); break;
+    case "bear": { const hat=sh(new THREE.Mesh(new THREE.SphereGeometry(0.2,14,8,0,Math.PI*2,0,Math.PI/2),mat)); const pom=sh(new THREE.Mesh(new THREE.SphereGeometry(0.06,8,6),mat)); pom.position.y=0.22; g.add(hat,pom);
+      if(bear.visible){g.position.set(0,0.12,-0.02); head.add(g)} else {g.position.set(-0.25,1.165,-2.42); hearth.add(g)} break; }
+  }
+  g.scale.setScalar(0.01); rewards.push({g,t:0}); 
+}
+function tickRewards(dt){for(const r of rewards){if(r.t>=1)continue; r.t=Math.min(1,r.t+dt*2); const k=r.t, s=k<0.7?k/0.7*1.25:1.25-0.25*(k-0.7)/0.3; r.g.scale.setScalar(s)}}
+function nextOrder(){
+  GAME.order=ORDERS[GAME.orderIdx%ORDERS.length]; GAME.orderRows=0; GAME.orderIdx++; GAME.orderColor=null;
+  $("orderName").textContent=GAME.order.name; renderOrder(); toast("New order",GAME.order.name);
+}
+function renderOrder(){ if(!GAME.order) return; const o=GAME.order; $("orderProg").textContent=`${GAME.orderRows} of ${o.rows} rows`;
+  $("orderBar").style.transform=`scaleX(${(GAME.orderRows/o.rows).toFixed(3)})`; $("orderPts").textContent=`+${o.pts.toLocaleString()}`}
+function orderRow(rowColor){
+  if(!GAME.order) return; GAME.orderRows++; GAME.orderColor=GAME.orderColor||rowColor; renderOrder();
+  if(GAME.orderRows>=GAME.order.rows){
+    const o=GAME.order; GAME.orderDone++; addScore(o.pts*GAME.mult); placeReward(o,GAME.orderColor);
+    toast("Order finished!",`${o.name} · +${(o.pts*GAME.mult).toLocaleString()}`); [523,659,784,1047,1319].forEach((f,i)=>tone(f,0.9,0.07,"sine",i*0.09));
+    sparkle(40,GAME.orderColor,1.8); flare=Math.max(flare,0.8); GAME.order=null; $("orderName").textContent="Looking for the next order…"; $("orderProg").textContent=""; 
+    setTimeout(nextOrder,2600);
+  }
+}
+
+/* ---- events ---- */
+const owlTex=canvasTex(128,128,(g,w,h)=>{g.fillStyle="#0b0f1a";g.beginPath();g.ellipse(64,78,30,40,0,0,7);g.fill();g.beginPath();g.arc(64,38,24,0,7);g.fill();
+  g.beginPath();g.moveTo(44,20);g.lineTo(40,4);g.lineTo(54,16);g.fill();g.beginPath();g.moveTo(84,20);g.lineTo(88,4);g.lineTo(74,16);g.fill();
+  g.fillStyle="#ffd36a";g.beginPath();g.arc(54,38,7,0,7);g.arc(74,38,7,0,7);g.fill();g.fillStyle="#000";g.beginPath();g.arc(55,38,3,0,7);g.arc(75,38,3,0,7);g.fill()});
+const owl=new THREE.Sprite(new THREE.SpriteMaterial({map:owlTex,transparent:true,depthWrite:false})); owl.scale.set(0.26,0.26,1); owl.visible=false; scene.add(owl);
+const mothTex=canvasTex(64,64,(g,w,h)=>{g.fillStyle="#d9c9a8";g.beginPath();g.ellipse(20,32,16,10,0.5,0,7);g.fill();g.beginPath();g.ellipse(44,32,16,10,-0.5,0,7);g.fill();g.fillStyle="#6b5a3a";g.fillRect(29,18,6,28)});
+const moth=new THREE.Sprite(new THREE.SpriteMaterial({map:mothTex,transparent:true,depthWrite:false})); moth.scale.set(0.07,0.07,1); moth.visible=false; scene.add(moth);
+const ladderLoop=new THREE.Mesh(loopGeo,M({color:0xffffff,roughness:1})); ladderLoop.visible=false; hands.add(ladderLoop);
+const EVENTS=["moth","owl","thief","dropped","bear"];
+function startEvent(name){
+  const e={name,t:0,done:false}; GAME.ev=e;
+  switch(name){
+    case "moth": moth.visible=true; e.dur=11; toast("A moth","Tap it before it reaches the candles"); break;
+    case "owl": owl.visible=true; owl.position.set(wx,wy+0.05,wz+0.06); e.dur=8; hoot(); setTimeout(hoot,1400); toast("Hoo-hoo","An owl at the window. Tap to say hello"); break;
+    case "thief": if(!cat.visible){GAME.ev=null;return} e.dur=14; e.need=3; e.got=0; e.ball=ball.position.clone(); cat.userData.thief=0;
+      toast("Yarn thief!","The cat has your yarn · swipe 3 loops to reel it in",true); creakish(); break;
+    case "dropped": e.dur=7; ladderLoop.visible=true; ladderLoop.material.color.set(yarnHex()); ladderLoop.userData.y=0;
+      toast("Dropped stitch!","Catch it with a purl",true); tone(330,0.3,0.07,"triangle"); tone(262,0.4,0.06,"triangle",0.15); break;
+    case "bear": GAME.ev=null; BEAR.triggerAt=BEAR.clock; break;
+  }
+  renderCard();
+}
+const creakish=()=>{tone(1800,0.08,0.05,"square"); tone(2400,0.08,0.04,"square",0.1)};
+function hoot(){if(!sfxOK())return;const t=actx.currentTime;[0,0.32].forEach((d,i)=>{const o=actx.createOscillator();o.type="sine";o.frequency.setValueAtTime(i?330:370,t+d);o.frequency.exponentialRampToValueAtTime(i?300:340,t+d+0.25);
+  const g=envGain(t+d,0.05,0.08,0.2,0.09);o.connect(g);toOut(g,0.7);o.start(t+d);o.stop(t+d+0.4)})}
+function endEvent(ok,msg,soft=false){
+  const e=GAME.ev; if(!e) return; GAME.ev=null; moth.visible=false; owl.visible=false; ladderLoop.visible=false;
+  if(e.name==="thief"){ball.position.copy(e.ball); cat.userData.thief=-1}
+  if(e.name==="dropped"&&!ok){state.cur=[]; redrawScarf(); snapCols()}
+  if(msg) toast(msg[0],msg[1],!ok); if(!ok&&!soft) breakCombo();
+  GAME.evNext=rnd(28,50); renderCard();
+}
+const _sp=new THREE.Vector3();
+function screenOf(obj){obj.getWorldPosition(_sp); _sp.project(camera); return {x:(_sp.x+1)/2*W,y:(1-_sp.y)/2*H,z:_sp.z}}
+function handleTap(x,y){
+  const e=GAME.ev; if(!e) return false;
+  const near=(o,r)=>{const s=screenOf(o); return s.z<1&&Math.hypot(s.x-x,s.y-y)<r};
+  if(e.name==="moth"&&near(moth,Math.max(44,W*0.07))){addScore(150*GAME.mult); sparkle(10,"#d9c9a8"); tone(1500,0.05,0.08,"square"); endEvent(true,["Got the moth","+"+(150*GAME.mult)]); return true}
+  if(e.name==="owl"&&near(owl,Math.max(60,W*0.1))){addScore(100*GAME.mult); hoot(); endEvent(true,["The owl blinks at you","+"+(100*GAME.mult)]); return true}
+  return false;
+}
+function eventGestureType(){const e=GAME.ev; if(!e) return null; if(e.name==="thief") return "O"; if(e.name==="dropped") return "P"; return null}
+function eventGestureDone(ok){
+  const e=GAME.ev; if(!e) return;
+  if(e.name==="thief"){ if(!ok) return; e.got++; whoosh(); sparkle(8,yarnHex()); if(e.got>=e.need){addScore(400*GAME.mult); endEvent(true,["Reeled it in","+"+(400*GAME.mult)+" · the cat sulks"])} else toast("Pull!",`${e.need-e.got} more loop${e.need-e.got>1?"s":""}`) }
+  if(e.name==="dropped"){ if(ok){addScore(300*GAME.mult); clickSound(); endEvent(true,["Caught it","+"+(300*GAME.mult)])} }
+}
+function tickEvents(dt,t){
+  if(!started) return;
+  if(!GAME.ev&&!bearActive()&&BEAR.phase!=="dying"&&BEAR.phase!=="win"&&BEAR.clock>12){
+    GAME.evNext-=dt; if(GAME.evNext<=0){const pool=EVENTS.filter(n=>n!=="bear"||BEAR.clock>60); startEvent(pool[Math.random()*pool.length|0])}
+  }
+  const e=GAME.ev; if(!e) return; e.t+=dt;
+  if(e.name==="moth"){const k=e.t/e.dur; hearth.localToWorld(moth.position.set(0.68-1.3*(1-k)+Math.sin(t*5)*0.12,1.45+Math.sin(t*7.3)*0.08+0.3*(1-k),-2.1+Math.cos(t*3)*0.1));
+    if(e.t>=e.dur){endEvent(false,["The moth got the candles","Too slow"],true)}}
+  if(e.name==="owl"&&e.t>=e.dur) endEvent(true,null);
+  if(e.name==="thief"){cat.userData.thief+=dt; const k=Math.min(1,cat.userData.thief/0.8);
+    cat.position.set(1.05-k*1.0,Math.sin(k*Math.PI)*0.4,-0.55+k*2.4); cat.rotation.y=-0.9+k*2.2;
+    const pull=e.got/e.need; ball.position.copy(e.ball); ball.position.x+=(1-pull)*Math.min(1,e.t/0.6)*0.45; ball.position.y-=(1-pull)*Math.min(1,e.t/0.6)*0.18;
+    if(e.t>=e.dur) endEvent(false,["The cat let go","It got bored"])}
+  if(e.name==="dropped"){ladderLoop.userData.y+=dt*0.05; onNeedle(needleL,2,ladderLoop.position); ladderLoop.position.y-=ladderLoop.userData.y; ladderLoop.quaternion.copy(needleL.quaternion).multiply(QX);
+    if(e.t>=e.dur) endEvent(false,["It unravelled","This row is lost"])}
+}
+function tickThiefReturn(dt){ if(cat.userData.thief<0){cat.userData.thief-=dt; const k=Math.min(1,-cat.userData.thief/1.2); cat.position.set(0.05+k*1.0,Math.sin(k*Math.PI)*0.3,1.85-k*2.4); cat.rotation.y=1.3-k*2.2; if(k>=1)cat.userData.thief=0} }
+
+/* ---- music box ---- */
+const MUSIC={on:false,next:0,step:0,bar:0,timer:null};
+const PENTA=[523.25,587.33,659.25,783.99,880,1046.5,1174.7,1318.5], BASS=[130.81,98,110,87.31];
+function mbNote(f,t,vol,dur=1.2,type="sine"){const o=actx.createOscillator(),o2=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.value=f;o2.type="sine";o2.frequency.value=f*2;
+  const g2=actx.createGain();g2.gain.value=0.25;o2.connect(g2).connect(g);o.connect(g);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+0.008);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);toOut(g,0.55);o.start(t);o2.start(t);o.stop(t+dur+0.05);o2.stop(t+dur+0.05)}
+function musicTick(){
+  if(!actx||actx.state!=="running"){return}
+  const bpm=bearActive()?104:76, beat=60/bpm, step=beat/2;
+  while(MUSIC.next<actx.currentTime+0.3){
+    const t=MUSIC.next, s=MUSIC.step%16, bar=Math.floor(MUSIC.step/16), chord=bar%4;
+    if(soundOn){
+      if(bearActive()){ if(s%4===0) mbNote(BASS[chord]/2,t,0.12,0.5,"triangle"); if(s%8===4) mbNote(BASS[chord]*0.75,t,0.07,0.4,"triangle"); if(s%2===1&&Math.random()<0.5) mbNote(PENTA[Math.random()*3|0]/2,t,0.025,0.3,"square") }
+      else {
+        const thin=GAME.cold>0.5;
+        if(s===0) mbNote(BASS[chord],t,0.07,beat*3.5,"triangle");
+        if(!thin){ const pat=[0,2,4,2,5,4,2,0,1,3,5,3,6,5,3,1]; const ni=(pat[s]+chord*(s%3===0?1:0))%PENTA.length;
+          if(s%2===0||Math.random()<0.35) mbNote(PENTA[ni],t,0.045+0.02*GAME.flow,1.1);
+          if(GAME.flow>0.5&&s%4===2) mbNote(PENTA[(ni+2)%PENTA.length]*0.5,t,0.03,1.6,"triangle") }
+      }
+    }
+    MUSIC.next+=step; MUSIC.step++;
+  }
+}
+function startMusic(){ if(MUSIC.on||!actx) return; MUSIC.on=true; MUSIC.next=actx.currentTime+0.1; MUSIC.timer=setInterval(musicTick,120) }
+
+function gameTick(dt,t){
+  GAME.comboT+=dt; if(GAME.combo>0&&GAME.comboT>5&&!bearActive()) breakCombo("Too slow");
+  GAME.flow+=((GAME.combo>=10?1:0)-GAME.flow)*Math.min(1,dt*2);
+  flowEl.style.opacity=(GAME.flow*0.9).toFixed(3);
+  if(GAME.shown!==GAME.score){GAME.shown+=Math.ceil((GAME.score-GAME.shown)*Math.min(1,dt*8)); if(Math.abs(GAME.score-GAME.shown)<2)GAME.shown=GAME.score; renderStats()}
+  // slow-mo
+  GAME.slow=Math.max(0,GAME.slow-dt); GAME.timeScale=GAME.slow>0?0.3:Math.min(1,GAME.timeScale+dt*2);
+  if(GAME.fire<0.3&&started){const j=(0.3-GAME.fire)*0.03; hands.rotation.z+=(Math.random()-.5)*j; hands.rotation.x+=(Math.random()-.5)*j}
+  tickFire(dt); tickSparks(dt); tickRewards(dt); tickEvents(dt,t); tickThiefReturn(dt);
+}
+$("stokeBtn").addEventListener("click",stoke);
+
 /* ---------------- sizing ---------------- */
 const trail=$("trail"), tctx=trail.getContext("2d");
 let W=1,H=1,DPR=1;
@@ -1436,7 +1681,7 @@ trail.addEventListener("pointerdown",e=>{
   if(gest.mode==="finish") commitPending();
   stroke=[{x:e.clientX,y:e.clientY}]; trailPts.length=0; trailPts.push({x:e.clientX,y:e.clientY,t:performance.now()});
   if((bearActive()||BEAR.phase==="dying"||BEAR.phase==="win")&&!bearFighting()){stroke=null;return}
-  gest.mode="drag"; gest.type=bearFighting()?BEAR.target:upcoming(1)[0]; gest.dragF=0; gest.on=true; fingerTarget.set(0,0,0);
+  gest.mode="drag"; gest.type=bearFighting()?BEAR.target:(eventGestureType()||upcoming(1)[0]); gest.dragF=0; gest.on=true; fingerTarget.set(0,0,0);
 });
 trail.addEventListener("pointermove",e=>{
   if(!stroke) return; const evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];
@@ -1452,17 +1697,20 @@ trail.addEventListener("pointerup",endStroke); trail.addEventListener("pointerca
 
 function evaluate(pts){
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(const p of pts){x0=Math.min(x0,p.x);y0=Math.min(y0,p.y);x1=Math.max(x1,p.x);y1=Math.max(y1,p.y)}
-  if(Math.max(x1-x0,y1-y0)<36 || pts.length<5){gest.mode="retreat";return}
+  if(Math.max(x1-x0,y1-y0)<36 || pts.length<5){gest.mode="retreat"; if(Math.max(x1-x0,y1-y0)<24) handleTap(pts[0].x,pts[0].y); return}
   const sc=score(pts); if(!sc){gest.mode="retreat";return}
   const target=gest.type;
   let best="K"; for(const k in sc) if(sc[k]<sc[best]) best=k;
   const d=sc[target];
   if(d<0.22 && (best===target || d<sc[best]+0.03)){
     if(bearFighting()){gest.mode="retreat"; bearStab(d<0.07?"Perfect":"Neat"); return}
+    if(eventGestureType()){gest.mode="retreat"; eventGestureDone(true); renderCard(); return}
     gest.pending={t:target,q:d<0.07?"Perfect":d<0.12?"Neat":"Snug"}; gest.mode="finish";
   } else {
     gest.mode="retreat"; streak=0; missSound();
     if(bearFighting()){toast("Missed!","Do the "+STITCH[target].name.toLowerCase()+" move",true); return}
+    breakCombo("Dropped it");
+    if(eventGestureType()){toast("Missed!","Do the "+STITCH[target].name.toLowerCase()+" move",true); return}
     if(sc[best]<0.16 && best!==target) toast("That was a "+STITCH[best].name.toLowerCase(),"This stitch is a "+STITCH[target].name.toLowerCase(),true);
     else toast("Dropped it","Follow the needle path on the card",true);
     renderCard();
@@ -1484,12 +1732,17 @@ function addStitch(t,quality){
   state.cur.push({t,c:yarnHex()}); state.stitches++; streak++; state.best=Math.max(state.best,streak);
   const c=PER_ROW-state.cur.length; cols[c].sv=1; cols[c].rR=0;
   clickSound();
-  let sub=streak>2?`${streak} in a row`:"";
+  if(GAME.fire<0.2&&quality!=="Snug") quality=quality==="Perfect"?"Neat":"Snug";
+  bumpCombo(); const pts=QPTS[quality]*GAME.mult; addScore(pts); GAME.fire=Math.min(1,GAME.fire+(quality==="Perfect"?0.012:0.005));
+  sparkle(quality==="Perfect"?14:quality==="Neat"?7:3,yarnHex(),quality==="Perfect"?1.3:1);
+  const gl=document.querySelector(".glyph"); gl.classList.remove("pop"); void gl.offsetWidth; gl.classList.add("pop");
+  let sub=`+${pts}`+(GAME.mult>1?` · ×${GAME.mult}`:"");
   if(state.cur.length>=PER_ROW){
     state.rows.push(state.cur); state.cur=[]; state.rowNum++; if(state.rows.length>60) state.rows.splice(0,state.rows.length-60);
-    rowGlow=1; rowSound();
-    if(state.rowNum%4===0){ toast("Row "+state.rowNum+" done","Turn the work · next pattern: "+pattern().name); }
-    else toast("Row "+state.rowNum+" done","Turn the work"+(sub?" · "+sub:""));
+    rowGlow=1; rowSound(); GAME.fire=Math.min(1,GAME.fire+0.22); const rb=300*GAME.mult; addScore(rb); sparkle(24,yarnHex(),1.6);
+    if(state.rowNum%4===0){ toast("Row "+state.rowNum+" done",`+${rb} · next pattern: ${pattern().name}`); }
+    else toast("Row "+state.rowNum+" done",`+${rb} · turn the work`);
+    orderRow(state.rows[state.rows.length-1][0].c);
   } else toast(quality+"!",sub);
   redrawScarf(); renderCard(); persist();
 }
@@ -1502,7 +1755,7 @@ function boot(data){
 }
 boot(saved);
 function beginPlay(){
-  started=true; $("intro").hidden=true; initAudio(); if(actx&&actx.state!=="running") actx.resume();
+  started=true; $("intro").hidden=true; initAudio(); if(actx&&actx.state!=="running") actx.resume(); startMusic(); setTimeout(nextOrder,1500); renderStats();
   if(navigator.wakeLock) navigator.wakeLock.request("screen").catch(()=>{});
 }
 const cleanRoom=v=>String(v||"").toLowerCase().replace(/[^a-z0-9-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,24);
@@ -1536,11 +1789,11 @@ document.querySelectorAll(".emote").forEach(b=>b.addEventListener("click",()=>{
 }));
 
 /* ---------------- loop ---------------- */
-const warmEl=document.getElementById("warm");
+const warmEl=document.getElementById("warm"), coldEl=document.getElementById("cold"), flowEl=document.getElementById("flow");
 const reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const clock=new THREE.Clock(); let time=0;
 function frame(){
-  const dt=Math.min(0.05,clock.getDelta()); time+=dt;
+  const rawDt=Math.min(0.05,clock.getDelta()); const dt=rawDt*GAME.timeScale; time+=dt;
   const warm=Math.min(1,streak/10);
 
   // camera breathing
@@ -1562,11 +1815,12 @@ function frame(){
   // fire
   flare=Math.max(0,flare-dt*4);
   const flick=0.78+0.1*Math.sin(time*7.1)+0.07*Math.sin(time*13.7+1)+0.05*Math.sin(time*23.3)+0.07*Math.random();
-  const fi=(2.1+warm*1.3+rowGlow*1.4+flare*1.6)*flick;
+  const fl=0.25+0.75*GAME.fire;
+  const fi=(2.1*fl+warm*1.3+rowGlow*1.4+flare*1.6+GAME.flow*0.6)*flick;
   fireLight.intensity=fi; fireFill.intensity=0.5*flick+flare*0.5;
   fireLight.position.set(Math.sin(time*3.1)*0.07+(Math.random()-.5)*0.04, 0.5+Math.sin(time*5.3)*0.05+(Math.random()-.5)*0.03, -2.3);
   pool.material.opacity=0.16+0.12*flick+flare*0.12;
-  if(warmEl) warmEl.style.opacity=(0.55+0.35*(flick-0.78)/0.3+flare*0.3).toFixed(3);
+  if(warmEl) warmEl.style.opacity=((0.55+0.35*(flick-0.78)/0.3+flare*0.3)*fl).toFixed(3);
   catBody.scale.y=0.11+Math.sin(time*1.6)*0.004; catHead.position.y=0.08+Math.sin(time*1.6)*0.002;
   coals.material.color.setRGB(1,0.32+0.12*flick,0.08);
   for(const s of flames){
@@ -1602,6 +1856,7 @@ function frame(){
   animateHands(dt,time,sway);
   netTick(dt,time);
   bearTick(dt,time);
+  gameTick(rawDt,time);
   const ph=gest.p>0.01?phaseOf(gest.p):-1;
   if(ph!==lastPh){lastPh=ph; document.querySelectorAll("#phases span").forEach((el,i)=>{el.classList.toggle("on",i===ph);el.classList.toggle("done",ph>i)})}
 
