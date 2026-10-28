@@ -664,15 +664,18 @@ const tilt=new THREE.Group(); rocker.add(tilt);
 const chairWood=M({map:woodTex,color:0x9a6a45,roughness:.6});
 for(const sx of [-1,1]){
   // armrest with a rolled front, spindles beneath, curved runner on the floor
-  add(new THREE.BoxGeometry(0.075,0.035,0.62),chairWood,sx*0.38,0.72,-0.2,{cast:true},tilt);
-  add(new THREE.CylinderGeometry(0.03,0.03,0.08,14),chairWood,sx*0.38,0.715,-0.51,{rz:Math.PI/2,cast:true},tilt);
-  for(const z of [-0.45,-0.25,-0.05]) add(new THREE.CylinderGeometry(0.012,0.014,0.27,8),chairWood,sx*0.38,0.57,z,{cast:true},tilt);
+  // long armrests reaching forward into view, with a rolled front and turned spindles
+  add(new THREE.BoxGeometry(0.09,0.04,0.9),chairWood,sx*0.3,0.8,-0.38,{cast:true},tilt);
+  add(new THREE.CylinderGeometry(0.038,0.038,0.1,16),chairWood,sx*0.3,0.79,-0.82,{rz:Math.PI/2,cast:true},tilt);
+  add(new THREE.CylinderGeometry(0.03,0.028,0.36,10),chairWood,sx*0.3,0.6,-0.8,{cast:true},tilt);
+  for(const z of [-0.6,-0.38,-0.16]) add(new THREE.CylinderGeometry(0.013,0.016,0.32,8),chairWood,sx*0.3,0.62,z,{cast:true},tilt);
+  add(new THREE.BoxGeometry(0.08,0.06,0.95),chairWood,sx*0.3,0.44,-0.36,{cast:true},tilt);
   add(new THREE.TorusGeometry(1.6,0.022,6,40,0.62),chairWood,sx*0.33,1.6,-0.05,{ry:Math.PI/2,rz:-Math.PI/2-0.31,cast:true},tilt);
 }
 const plaidTex=canvasTex(128,128,(g,w,h)=>{g.fillStyle="#2f4a3a";g.fillRect(0,0,w,h);
   for(let i=0;i<w;i+=32){g.fillStyle="rgba(180,60,50,.75)";g.fillRect(i+10,0,10,h);g.fillRect(0,i+10,w,10);g.fillStyle="rgba(230,200,140,.5)";g.fillRect(i+26,0,2,h);g.fillRect(0,i+26,w,2)}},[2,2]);
-add(new THREE.CylinderGeometry(0.05,0.05,0.4,16,1,false,-0.6,Math.PI+1.2),M({map:plaidTex,roughness:1}),-0.38,0.73,-0.12,{rx:Math.PI/2,cast:true},tilt);
-add(new THREE.BoxGeometry(0.02,0.26,0.4),M({map:plaidTex,roughness:1}),-0.43,0.6,-0.12,{rz:0.1,cast:true},tilt);
+add(new THREE.CylinderGeometry(0.06,0.06,0.42,16,1,false,-0.6,Math.PI+1.2),M({map:plaidTex,roughness:1}),-0.3,0.81,-0.3,{rx:Math.PI/2,cast:true},tilt);
+add(new THREE.BoxGeometry(0.02,0.3,0.42),M({map:plaidTex,roughness:1}),-0.36,0.66,-0.3,{rz:0.1,cast:true},tilt);
 const ROCK={amp:0.045,period:4.6,prevVel:0,eye:new THREE.Vector3(),look:new THREE.Vector3(),fwd:new THREE.Vector3()};
 const MUG={x:-1.1,y:0.695,z:0.75};
 add(new THREE.CylinderGeometry(0.28,0.28,0.04,20),woodMat,-1.15,0.62,0.75,{cast:true}); add(new THREE.CylinderGeometry(0.04,0.05,0.6,8),woodMat,-1.15,0.3,0.75,{cast:true});
