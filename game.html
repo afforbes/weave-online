@@ -47,7 +47,10 @@ body{background:var(--night);color:var(--wool);font-family:var(--body);overflow:
 .btns{display:flex;gap:8px;align-items:center}
 .stoke{font:800 .85rem var(--display);color:#2a160b;background:var(--ember);border:0;border-radius:999px;padding:10px 14px;cursor:pointer;box-shadow:0 4px 0 #b8622a;animation:beckon 1.2s ease-in-out infinite}
 .stoke:active{transform:translateY(2px);box-shadow:0 2px 0 #b8622a} @keyframes beckon{50%{transform:scale(1.06)}}
-.order{display:flex;flex-direction:column;gap:3px;padding:8px 12px;border-radius:14px;background:var(--bark);border:1px solid var(--bark-line);max-width:220px;text-align:right}
+.order{display:flex;gap:10px;align-items:center;padding:8px 12px;border-radius:14px;background:var(--bark);border:1px solid var(--bark-line);max-width:250px;text-align:right}
+.o-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.o-pic{width:34px;height:48px;flex:none} .o-pic svg{width:100%;height:100%}
+.o-out{fill:rgba(246,233,215,.08);stroke:var(--wool-dim);stroke-width:1.5} .o-fill{fill:var(--moss)}
 .order em{font-style:normal;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--moss)}
 .order b{font-family:var(--display);font-size:.9rem;line-height:1.15;color:var(--wool)}
 .obar{display:flex;align-items:center;gap:6px;justify-content:flex-end;font-size:.66rem;color:var(--wool-dim);font-variant-numeric:tabular-nums}
@@ -210,7 +213,7 @@ body{background:var(--night);color:var(--wool);font-family:var(--body);overflow:
     <div class="swatches" id="swatches" role="group" aria-label="Yarn colour"></div>
   </div>
   <div class="bottom-right">
-    <div class="order" id="order"><em>Order</em><b id="orderName">Settle in first</b><div class="obar"><i><b id="orderBar"></b></i><span id="orderProg"></span><span class="opts" id="orderPts"></span></div></div>
+    <div class="order" id="order"><div class="o-pic" id="orderPic"></div><div class="o-text"><em>Order</em><b id="orderName">Settle in first</b><div class="obar"><i><b id="orderBar"></b></i><span id="orderProg"></span><span class="opts" id="orderPts"></span></div></div></div>
     <div class="btns">
     <button class="stoke" id="stokeBtn" hidden>🪵 Stoke the fire</button>
   <button class="icon-btn" id="soundBtn" aria-label="Sound on" aria-pressed="true">
@@ -864,8 +867,26 @@ function animateGrip(p,t){
   poseHand(handR,GR,TR); poseHand(handL,GL,TL);
 }
 needleL.traverse(o=>{if(o.isMesh)o.castShadow=true}); needleR.traverse(o=>{if(o.isMesh)o.castShadow=true});
-const RANK0=0.03, RANKSTEP=0.017;
-const onNeedle=(n,rank,out)=>out.set(0,NH-RANK0-rank*RANKSTEP,0).applyMatrix4(n.matrix);
+const RANK0=0.03, RANKSTEP=0.017; let rankScale=1;
+const onNeedle=(n,rank,out)=>out.set(0,NH-RANK0-rank*RANKSTEP*rankScale,0).applyMatrix4(n.matrix);
+/* garment shaping: width of the work as a fraction of full width, by progress g (0 = cast on, 1 = finished) */
+const ROWS_PER_KNIT=3;
+const bump=(g,a,b,h)=>g>a&&g<b?h*Math.sin((g-a)/(b-a)*Math.PI):0;
+const taper=(g,a,end)=>g>a?1-(1-end)*ease((g-a)/(1-a)):1;
+const SHAPES={
+  scarf:g=>0.85,
+  cosy:g=>1.3-1.0*ease(g),
+  cushion:g=>1.4,
+  mitten:g=>((g<0.22?0.62:0.88)+bump(g,0.28,0.58,0.28))*taper(g,0.72,0.12),
+  sock:g=>(g<0.3?0.66:0.7)+bump(g,0.38,0.58,0.32)+(taper(g,0.8,0.12)-1)*0.7,
+  hat:g=>(g<0.2?0.98:1.06)+(taper(g,0.55,0.1)-1)*1.06,
+};
+let garment={shape:SHAPES.scarf,rows:4};
+function knitRowsOnNeedle(){return GAME.orderRows+(state.cur.length/PER_ROW)}
+function widthAt(k){ // k = mesh row from the needles
+  const g=Math.max(0,Math.min(1,(knitRowsOnNeedle()-k/ROWS_PER_KNIT)/garment.rows));
+  return Math.max(0.08,garment.shape(g));
+}
 const needleLocal=(n,x,y,z,out)=>out.set(x,y,z).applyMatrix4(n.matrix);
 const ease=t=>t<=0?0:t>=1?1:t*t*(3-2*t);
 
@@ -918,23 +939,33 @@ function redrawScarf(){
 /* fabric: a verlet cloth pinned to each live loop, pulled by real gravity, folding onto your lap */
 const VC=PER_ROW*2, ROWH=0.019, FABW=0.23, COLW=FABW/VC;
 const fabGeo=new THREE.PlaneGeometry(1,1,VC,MAX_ROWS);
+{const uv=fabGeo.attributes.uv; for(let i=0;i<uv.count;i++) uv.setY(i,1-(1-uv.getY(i))/ROWS_PER_KNIT)}
 const fab=new THREE.Mesh(fabGeo,new THREE.MeshStandardMaterial({map:scarfTex,bumpMap:scarfTex,bumpScale:0.025,alphaTest:0.5,side:THREE.DoubleSide,roughness:0.95}));
 fab.frustumCulled=false; fab.receiveShadow=true; fab.castShadow=true; hands.add(fab);
 const fabPos=fabGeo.attributes.position, anc=Array.from({length:PER_ROW},()=>V3()), ancRow=new Array(PER_ROW).fill(0);
 const _va=V3();
 const NV=(VC+1)*(MAX_ROWS+1), cp=new Float32Array(NV*3), cq=new Float32Array(NV*3), pinned=new Uint8Array(NV);
 const cons=[]; // [i, j, rest, stiffness]
+const consRow=[]; // which mesh row each constraint's rest width is taken from (-1: vertical, unaffected)
 (function buildConstraints(){
   const id=(k,v)=>k*(VC+1)+v, diag=Math.hypot(COLW,ROWH);
   for(let k=0;k<=MAX_ROWS;k++)for(let v=0;v<=VC;v++){
-    if(v<VC) cons.push(id(k,v),id(k,v+1),COLW,1);
-    if(k<MAX_ROWS) cons.push(id(k,v),id(k+1,v),ROWH,1);
-    if(v<VC&&k<MAX_ROWS){cons.push(id(k,v),id(k+1,v+1),diag,0.6); cons.push(id(k,v+1),id(k+1,v),diag,0.6)}
-    if(v<VC-1) cons.push(id(k,v),id(k,v+2),COLW*2,0.25);   // bend: knit resists folding a little
-    if(k<MAX_ROWS-1) cons.push(id(k,v),id(k+2,v),ROWH*2,0.25);
+    if(v<VC){cons.push(id(k,v),id(k,v+1),COLW,1); consRow.push([k,1])}
+    if(k<MAX_ROWS){cons.push(id(k,v),id(k+1,v),ROWH,1); consRow.push([-1,0])}
+    if(v<VC&&k<MAX_ROWS){cons.push(id(k,v),id(k+1,v+1),diag,0.6); consRow.push([k,2]); cons.push(id(k,v+1),id(k+1,v),diag,0.6); consRow.push([k,2])}
+    if(v<VC-1){cons.push(id(k,v),id(k,v+2),COLW*2,0.25); consRow.push([k,3])}   // bend: knit resists folding a little
+    if(k<MAX_ROWS-1){cons.push(id(k,v),id(k+2,v),ROWH*2,0.25); consRow.push([-1,0])}
   }
 })();
 const NC=cons.length/4;
+function reshapeCloth(){
+  const w=[]; for(let k=0;k<=MAX_ROWS;k++) w.push(widthAt(k));
+  for(let c=0;c<NC;c++){const [k,kind]=consRow[c]; if(k<0) continue;
+    const wk=kind===2?(w[k]+w[Math.min(MAX_ROWS,k+1)])/2:w[k];
+    cons[c*4+2]=kind===1?COLW*wk:kind===2?Math.hypot(COLW*wk,ROWH):COLW*2*wk}
+  rankScale=Math.max(0.12,w[0]);
+}
+function setGarment(spec){garment=spec; reshapeCloth(); clothReady=false}
 let clothReady=false, lapY=-0.19;
 const _gq=new THREE.Quaternion(), _grav=V3();
 function anchorFor(v,out){
@@ -945,8 +976,8 @@ function anchorFor(v,out){
 }
 function seedCloth(){
   let my=0,mz=0; for(let c=0;c<PER_ROW;c++){my+=anc[c].y;mz+=anc[c].z} my/=PER_ROW; mz/=PER_ROW;
-  for(let v=0;v<=VC;v++){const ar=anchorFor(v,_va), rx=(v/VC-0.5)*FABW;
-    for(let k=0;k<=MAX_ROWS;k++){const i=(k*(VC+1)+v)*3, dk=Math.max(0,k-ar), b=1-Math.exp(-dk/5);
+  for(let v=0;v<=VC;v++){const ar=anchorFor(v,_va);
+    for(let k=0;k<=MAX_ROWS;k++){const i=(k*(VC+1)+v)*3, dk=Math.max(0,k-ar), b=1-Math.exp(-dk/5), rx=(v/VC-0.5)*FABW*widthAt(k);
       cp[i]=_va.x+(rx-_va.x)*b; cp[i+1]=_va.y+(my-_va.y)*b-dk*ROWH; cp[i+2]=_va.z+(mz-_va.z)*b;
       cq[i]=cp[i]; cq[i+1]=cp[i+1]; cq[i+2]=cp[i+2];}}
   clothReady=true;
@@ -1517,12 +1548,12 @@ function tickFire(dt){
 
 /* ---- orders: knit things for the cabin ---- */
 const ORDERS=[
-  {name:"A scarf for the cat",rows:3,pts:800,hint:"3 rows",place:"cat"},
-  {name:"A cosy for the tea mug",rows:2,pts:500,hint:"2 rows",place:"mug"},
-  {name:"A cushion for the armchair",rows:3,pts:900,hint:"3 rows",place:"chair"},
-  {name:"Mittens for the postie",rows:4,pts:1300,hint:"4 rows",place:"mantel"},
-  {name:"Bed socks for a cold night",rows:3,pts:1000,hint:"3 rows",place:"shelf"},
-  {name:"A bobble hat",rows:4,pts:1500,hint:"4 rows",place:"bear"},
+  {name:"A scarf for the cat",rows:3,pts:800,place:"cat",shape:"scarf"},
+  {name:"A cosy for the tea mug",rows:3,pts:600,place:"mug",shape:"cosy"},
+  {name:"A cushion for the armchair",rows:3,pts:900,place:"chair",shape:"cushion"},
+  {name:"Mittens for the postie",rows:4,pts:1300,place:"mantel",shape:"mitten"},
+  {name:"Bed socks for a cold night",rows:4,pts:1100,place:"shelf",shape:"sock"},
+  {name:"A bobble hat",rows:4,pts:1500,place:"bear",shape:"hat"},
 ];
 const knitTexCache={};
 function knitTexFor(hex){ if(knitTexCache[hex]) return knitTexCache[hex];
@@ -1550,16 +1581,25 @@ function placeReward(o,hex){
 function tickRewards(dt){for(const r of rewards){if(r.t>=1)continue; r.t=Math.min(1,r.t+dt*2); const k=r.t, s=k<0.7?k/0.7*1.25:1.25-0.25*(k-0.7)/0.3; r.g.scale.setScalar(s)}}
 function nextOrder(){
   GAME.order=ORDERS[GAME.orderIdx%ORDERS.length]; GAME.orderRows=0; GAME.orderIdx++; GAME.orderColor=null;
+  setGarment({shape:SHAPES[GAME.order.shape],rows:GAME.order.rows});
   $("orderName").textContent=GAME.order.name; renderOrder(); toast("New order",GAME.order.name);
 }
+function silhouette(shape,fill){ // small outline of the piece, filling up as rows finish
+  const pts=[]; for(let i=0;i<=20;i++){const g=i/20, w=Math.min(1.5,shape(g))*13; pts.push([w,52-g*48])}
+  const d="M"+pts.map(p=>(20-p[0]).toFixed(1)+" "+p[1].toFixed(1)).join("L")+"L"+pts.slice().reverse().map(p=>(20+p[0]).toFixed(1)+" "+p[1].toFixed(1)).join("L")+"Z";
+  const h=48*fill; return `<svg viewBox="0 0 40 56" aria-hidden="true"><defs><clipPath id="ocp"><rect x="0" y="${(52-h).toFixed(1)}" width="40" height="${h.toFixed(1)}"/></clipPath></defs><path class="o-out" d="${d}"/><path class="o-fill" d="${d}" clip-path="url(#ocp)"/></svg>`;
+}
 function renderOrder(){ if(!GAME.order) return; const o=GAME.order; $("orderProg").textContent=`${GAME.orderRows} of ${o.rows} rows`;
+  $("orderPic").innerHTML=silhouette(SHAPES[o.shape],GAME.orderRows/o.rows);
   $("orderBar").style.transform=`scaleX(${(GAME.orderRows/o.rows).toFixed(3)})`; $("orderPts").textContent=`+${o.pts.toLocaleString()}`}
 function orderRow(rowColor){
   if(!GAME.order) return; GAME.orderRows++; GAME.orderColor=GAME.orderColor||rowColor; renderOrder();
   if(GAME.orderRows>=GAME.order.rows){
     const o=GAME.order; GAME.orderDone++; addScore(o.pts*GAME.mult); placeReward(o,GAME.orderColor);
     toast("Order finished!",`${o.name} · +${(o.pts*GAME.mult).toLocaleString()}`); [523,659,784,1047,1319].forEach((f,i)=>tone(f,0.9,0.07,"sine",i*0.09));
-    sparkle(40,GAME.orderColor,1.8); flare=Math.max(flare,0.8); GAME.order=null; $("orderName").textContent="Looking for the next order…"; $("orderProg").textContent=""; 
+    sparkle(40,GAME.orderColor,1.8); flare=Math.max(flare,0.8); GAME.order=null; $("orderName").textContent="Looking for the next order…"; $("orderProg").textContent=""; $("orderPic").innerHTML="";
+    // the finished piece comes off the needles; cast on afresh
+    state.rows=castOn(); state.cur=[]; redrawScarf(); snapCols(); setGarment({shape:SHAPES.scarf,rows:4}); persist();
     setTimeout(nextOrder,2600);
   }
 }
@@ -1739,7 +1779,7 @@ function addStitch(t,quality){
   netSend({t:"stitch",s:{t,c:yarnHex()}});
   state.cur.push({t,c:yarnHex()}); state.stitches++; streak++; state.best=Math.max(state.best,streak);
   const c=PER_ROW-state.cur.length; cols[c].sv=1; cols[c].rR=0;
-  clickSound();
+  clickSound(); reshapeCloth();
   if(GAME.fire<0.2&&quality!=="Snug") quality=quality==="Perfect"?"Neat":"Snug";
   bumpCombo(); const pts=QPTS[quality]*GAME.mult; addScore(pts); GAME.fire=Math.min(1,GAME.fire+(quality==="Perfect"?0.012:0.005));
   sparkle(quality==="Perfect"?14:quality==="Neat"?7:3,yarnHex(),quality==="Perfect"?1.3:1);
