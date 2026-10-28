@@ -662,20 +662,21 @@ add(new THREE.CircleGeometry(1.25,40),M({map:rugTex}),0.75,0.012,-0.55,{rx:-Math
 const rocker=new THREE.Group(); rocker.position.set(CAM_BASE.x,0,CAM_BASE.z); scene.add(rocker);
 const tilt=new THREE.Group(); rocker.add(tilt);
 const chairWood=M({map:woodTex,color:0x9a6a45,roughness:.6});
+const arms=[];
 for(const sx of [-1,1]){
-  // armrest with a rolled front, spindles beneath, curved runner on the floor
-  // long armrests reaching forward into view, with a rolled front and turned spindles
-  add(new THREE.BoxGeometry(0.09,0.04,0.9),chairWood,sx*0.3,0.8,-0.38,{cast:true},tilt);
-  add(new THREE.CylinderGeometry(0.038,0.038,0.1,16),chairWood,sx*0.3,0.79,-0.82,{rz:Math.PI/2,cast:true},tilt);
-  add(new THREE.CylinderGeometry(0.03,0.028,0.36,10),chairWood,sx*0.3,0.6,-0.8,{cast:true},tilt);
-  for(const z of [-0.6,-0.38,-0.16]) add(new THREE.CylinderGeometry(0.013,0.016,0.32,8),chairWood,sx*0.3,0.62,z,{cast:true},tilt);
-  add(new THREE.BoxGeometry(0.08,0.06,0.95),chairWood,sx*0.3,0.44,-0.36,{cast:true},tilt);
+  // long armrests reaching forward into view, with a rolled front, turned spindles, and a curved runner on the floor
+  const arm=new THREE.Group(); arm.position.x=sx*0.3; tilt.add(arm); arms.push(arm);
+  add(new THREE.BoxGeometry(0.09,0.04,0.9),chairWood,0,0.8,-0.38,{cast:true},arm);
+  add(new THREE.CylinderGeometry(0.038,0.038,0.1,16),chairWood,0,0.79,-0.82,{rz:Math.PI/2,cast:true},arm);
+  add(new THREE.CylinderGeometry(0.03,0.028,0.36,10),chairWood,0,0.6,-0.8,{cast:true},arm);
+  for(const z of [-0.6,-0.38,-0.16]) add(new THREE.CylinderGeometry(0.013,0.016,0.32,8),chairWood,0,0.62,z,{cast:true},arm);
+  add(new THREE.BoxGeometry(0.08,0.06,0.95),chairWood,0,0.44,-0.36,{cast:true},arm);
   add(new THREE.TorusGeometry(1.6,0.022,6,40,0.62),chairWood,sx*0.33,1.6,-0.05,{ry:Math.PI/2,rz:-Math.PI/2-0.31,cast:true},tilt);
 }
 const plaidTex=canvasTex(128,128,(g,w,h)=>{g.fillStyle="#2f4a3a";g.fillRect(0,0,w,h);
   for(let i=0;i<w;i+=32){g.fillStyle="rgba(180,60,50,.75)";g.fillRect(i+10,0,10,h);g.fillRect(0,i+10,w,10);g.fillStyle="rgba(230,200,140,.5)";g.fillRect(i+26,0,2,h);g.fillRect(0,i+26,w,2)}},[2,2]);
-add(new THREE.CylinderGeometry(0.06,0.06,0.42,16,1,false,-0.6,Math.PI+1.2),M({map:plaidTex,roughness:1}),-0.3,0.81,-0.3,{rx:Math.PI/2,cast:true},tilt);
-add(new THREE.BoxGeometry(0.02,0.3,0.42),M({map:plaidTex,roughness:1}),-0.36,0.66,-0.3,{rz:0.1,cast:true},tilt);
+add(new THREE.CylinderGeometry(0.06,0.06,0.42,16,1,false,-0.6,Math.PI+1.2),M({map:plaidTex,roughness:1}),0,0.81,-0.3,{rx:Math.PI/2,cast:true},arms[0]);
+add(new THREE.BoxGeometry(0.02,0.3,0.42),M({map:plaidTex,roughness:1}),-0.06,0.66,-0.3,{rz:0.1,cast:true},arms[0]);
 const ROCK={amp:0.045,period:4.6,prevVel:0,eye:new THREE.Vector3(),look:new THREE.Vector3(),fwd:new THREE.Vector3()};
 const MUG={x:-1.1,y:0.695,z:0.75};
 add(new THREE.CylinderGeometry(0.28,0.28,0.04,20),woodMat,-1.15,0.62,0.75,{cast:true}); add(new THREE.CylinderGeometry(0.04,0.05,0.6,8),woodMat,-1.15,0.3,0.75,{cast:true});
@@ -1716,7 +1717,7 @@ let W=1,H=1,DPR=1;
 function resize(){
   W=window.innerWidth; H=window.innerHeight; DPR=Math.min(2,window.devicePixelRatio||1);
   renderer.setSize(W,H,false); trail.width=W*DPR; trail.height=H*DPR; tctx.setTransform(DPR,0,0,DPR,0,0);
-  const aspect=W/H; camera.aspect=aspect; LOOK.x=aspect<1?1.35:0.55; camera.fov=aspect<1?72:58; camera.updateProjectionMatrix();
+  const aspect=W/H; camera.aspect=aspect; LOOK.x=aspect<1?1.35:0.55; const ax=aspect<1?0.22:0.3; arms[0].position.x=-ax; arms[1].position.x=ax; camera.fov=aspect<1?72:58; camera.updateProjectionMatrix();
   const d=0.6, halfH=d*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)), halfW=halfH*aspect;
   const s=Math.min(1.35,(halfW*2)/0.6);
   hands.scale.setScalar(s); hands.position.set(0,-halfH*(aspect<1?0.28:0.2),-d); HANDS_BASE.copy(hands.position);
