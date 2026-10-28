@@ -483,24 +483,31 @@ function tone(freq,dur,vol,type="sine",when=0){
 const clickSound=()=>{tone(2100,0.05,0.12,"triangle");tone(1500,0.06,0.10,"triangle",0.07)};
 const rowSound=()=>{[523.25,659.25,783.99].forEach((f,i)=>tone(f,0.9,0.08,"sine",i*0.09))};
 const missSound=()=>tone(180,0.18,0.08,"triangle");
-/* wooden creak: a stick-slip pulse train ringing through the chair's resonances */
+/* wooden creak: slow stick-slip groan driving a bank of wood body resonances */
 function creak(strength=1,pitch=1){
   if(!actx||!soundOn||!fireBus||actx.state!=="running") return;
-  const SR=actx.sampleRate, dur=0.35+Math.random()*0.4, n=SR*dur|0, b=actx.createBuffer(1,n,SR), d=b.getChannelData(0);
-  const f0=(26+Math.random()*12)*pitch, f1=f0*(1.2+Math.random()*0.5), L=Math.max(8,SR*0.0025|0), tau=SR*0.0005;
-  let ph=0;
-  for(let i=0;i<n;i++){const t=i/n; ph+=(f0+(f1-f0)*t+Math.sin(t*28)*3)/SR;
-    if(ph>=1){ph-=1; const amp=Math.pow(Math.sin(Math.PI*t),1.5)*(0.55+0.45*Math.random());
-      for(let k=0;k<L&&i+k<n;k++) d[i+k]+=amp*(Math.random()*2-1)*Math.exp(-k/tau)}}
+  const SR=actx.sampleRate, dur=0.7+Math.random()*0.6, n=SR*dur|0, b=actx.createBuffer(1,n,SR), d=b.getChannelData(0);
+  // slip rate rises as the joint loads up, hangs, then falls away: "eeeerrrk"
+  const r0=(14+Math.random()*8)*pitch, r1=r0*(2.2+Math.random()*1.2), hold=0.35+Math.random()*0.25, L=Math.max(12,SR*0.004|0), tau=SR*0.0009;
+  let ph=0, drop=0;
+  for(let i=0;i<n;i++){const t=i/n; const rate=t<hold?r0+(r1-r0)*Math.pow(t/hold,0.7):r1-(r1-r0*0.8)*Math.pow((t-hold)/(1-hold),1.6);
+    ph+=(rate*(1+Math.sin(t*41)*0.08))/SR;
+    if(ph>=1){ph-=1; if(drop>0){drop--;continue} if(Math.random()<0.06) drop=1+(Math.random()*3|0);
+      const amp=Math.pow(Math.sin(Math.PI*t),0.8)*(0.6+0.4*Math.random());
+      for(let k=0;k<L&&i+k<n;k++) d[i+k]+=amp*((Math.random()*2-1)*0.5+Math.sin(k/L*Math.PI*2)*0.5)*Math.exp(-k/tau)}}
   const src=actx.createBufferSource(); src.buffer=b;
-  const out=actx.createGain(); out.gain.value=0.16*strength;
-  [[620,5],[1350,7],[2400,9]].forEach(([f,q],i)=>{const bp=actx.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=f*pitch*(0.95+Math.random()*0.1); bp.Q.value=q;
-    const g=actx.createGain(); g.gain.value=[1,0.7,0.3][i]; src.connect(bp).connect(g).connect(out)});
-  out.connect(fireBus); const sg=actx.createGain(); sg.gain.value=0.5; out.connect(sg).connect(revIn);
+  const grit=actx.createWaveShaper(); const c=new Float32Array(512); for(let i=0;i<512;i++){const x=i/256-1;c[i]=Math.tanh(x*2.2)} grit.curve=c;
+  const out=actx.createGain(); out.gain.value=0.34*strength;
+  // the chair's body: a handful of sharp wooden modes, low ones loudest
+  [[96,10,1.0],[165,14,0.9],[262,18,0.8],[410,20,0.55],[640,22,0.35],[980,24,0.2],[1500,26,0.1]].forEach(([f,q,g])=>{
+    const bp=actx.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=f*pitch*(0.96+Math.random()*0.08); bp.Q.value=q;
+    const gg=actx.createGain(); gg.gain.value=g; src.connect(bp).connect(gg).connect(grit)});
+  const lp=actx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=2400; grit.connect(lp).connect(out);
+  out.connect(fireBus); const sg=actx.createGain(); sg.gain.value=0.45; out.connect(sg).connect(revIn);
   src.start();
   // the runners settling on the floorboards
-  const o=actx.createOscillator(), og=actx.createGain(), t0=actx.currentTime+0.05; o.frequency.setValueAtTime(70*pitch,t0); o.frequency.exponentialRampToValueAtTime(45,t0+0.25);
-  og.gain.setValueAtTime(0,t0); og.gain.linearRampToValueAtTime(0.05*strength,t0+0.02); og.gain.exponentialRampToValueAtTime(0.0001,t0+0.3); o.connect(og).connect(fireBus); o.start(t0); o.stop(t0+0.35);
+  const t0=actx.currentTime+dur*0.55, o=actx.createOscillator(), og=actx.createGain(); o.type="triangle"; o.frequency.setValueAtTime(64*pitch,t0); o.frequency.exponentialRampToValueAtTime(38,t0+0.35);
+  og.gain.setValueAtTime(0,t0); og.gain.linearRampToValueAtTime(0.09*strength,t0+0.03); og.gain.exponentialRampToValueAtTime(0.0001,t0+0.45); o.connect(og).connect(fireBus); o.start(t0); o.stop(t0+0.5);
 }
 $("soundBtn").addEventListener("click",()=>{
   soundOn=!soundOn; $("soundBtn").setAttribute("aria-pressed",String(soundOn)); $("soundBtn").setAttribute("aria-label",soundOn?"Sound on":"Sound off");
@@ -1803,7 +1810,7 @@ function frame(){
   const w=2*Math.PI/ROCK.period, amp=ROCK.amp*sway*BEAR.calm;
   const theta=amp*(Math.sin(time*w)+0.12*Math.sin(2*time*w+0.6));
   const vel=Math.cos(time*w)+0.24*Math.cos(2*time*w+0.6);
-  if(amp>0&&Math.sign(vel)!==Math.sign(ROCK.prevVel)&&ROCK.prevVel!==0){ if(Math.random()<0.85) creak(vel<0?1:0.7, vel<0?1:1.18) }
+  if(amp>0&&Math.sign(vel)!==Math.sign(ROCK.prevVel)&&ROCK.prevVel!==0){ if(Math.random()<0.9) creak(vel<0?1:0.75, vel<0?1:1.12) }
   ROCK.prevVel=vel;
   ROCK.fwd.set(LOOK.x-CAM_BASE.x,0,LOOK.z-CAM_BASE.z); const flat=ROCK.fwd.length(); ROCK.fwd.normalize();
   rocker.rotation.set(0,Math.atan2(-ROCK.fwd.x,-ROCK.fwd.z),0); tilt.rotation.x=-theta; rocker.updateMatrixWorld(true);
