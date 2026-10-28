@@ -424,6 +424,25 @@ function tone(freq,dur,vol,type="sine",when=0){
 const clickSound=()=>{tone(2100,0.05,0.12,"triangle");tone(1500,0.06,0.10,"triangle",0.07)};
 const rowSound=()=>{[523.25,659.25,783.99].forEach((f,i)=>tone(f,0.9,0.08,"sine",i*0.09))};
 const missSound=()=>tone(180,0.18,0.08,"triangle");
+/* wooden creak: a stick-slip pulse train ringing through the chair's resonances */
+function creak(strength=1,pitch=1){
+  if(!actx||!soundOn||!fireBus||actx.state!=="running") return;
+  const SR=actx.sampleRate, dur=0.35+Math.random()*0.4, n=SR*dur|0, b=actx.createBuffer(1,n,SR), d=b.getChannelData(0);
+  const f0=(26+Math.random()*12)*pitch, f1=f0*(1.2+Math.random()*0.5), L=Math.max(8,SR*0.0025|0), tau=SR*0.0005;
+  let ph=0;
+  for(let i=0;i<n;i++){const t=i/n; ph+=(f0+(f1-f0)*t+Math.sin(t*28)*3)/SR;
+    if(ph>=1){ph-=1; const amp=Math.pow(Math.sin(Math.PI*t),1.5)*(0.55+0.45*Math.random());
+      for(let k=0;k<L&&i+k<n;k++) d[i+k]+=amp*(Math.random()*2-1)*Math.exp(-k/tau)}}
+  const src=actx.createBufferSource(); src.buffer=b;
+  const out=actx.createGain(); out.gain.value=0.16*strength;
+  [[620,5],[1350,7],[2400,9]].forEach(([f,q],i)=>{const bp=actx.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=f*pitch*(0.95+Math.random()*0.1); bp.Q.value=q;
+    const g=actx.createGain(); g.gain.value=[1,0.7,0.3][i]; src.connect(bp).connect(g).connect(out)});
+  out.connect(fireBus); const sg=actx.createGain(); sg.gain.value=0.5; out.connect(sg).connect(revIn);
+  src.start();
+  // the runners settling on the floorboards
+  const o=actx.createOscillator(), og=actx.createGain(), t0=actx.currentTime+0.05; o.frequency.setValueAtTime(70*pitch,t0); o.frequency.exponentialRampToValueAtTime(45,t0+0.25);
+  og.gain.setValueAtTime(0,t0); og.gain.linearRampToValueAtTime(0.05*strength,t0+0.02); og.gain.exponentialRampToValueAtTime(0.0001,t0+0.3); o.connect(og).connect(fireBus); o.start(t0); o.stop(t0+0.35);
+}
 $("soundBtn").addEventListener("click",()=>{
   soundOn=!soundOn; $("soundBtn").setAttribute("aria-pressed",String(soundOn)); $("soundBtn").setAttribute("aria-label",soundOn?"Sound on":"Sound off");
   $("soundWave").style.opacity=soundOn?1:0; initAudio(); if(actx&&actx.state!=="running")actx.resume();
@@ -570,14 +589,22 @@ const jar=add(new THREE.CylinderGeometry(0.06,0.06,0.16,14),M({color:0x9fbf7a,ro
 
 /* rug, armchair with plaid throw, side table with tea, sleeping cat */
 add(new THREE.CircleGeometry(1.25,40),M({map:rugTex}),0.75,0.012,-0.55,{rx:-Math.PI/2}).scale.set(1.3,1,1);
-const fabric=M({color:0x6e3b3b,roughness:1});
-add(new THREE.BoxGeometry(0.28,0.22,1.0),fabric,-0.62,0.72,1.75,{cast:true}); add(new THREE.BoxGeometry(0.28,0.22,1.0),fabric,0.62,0.72,1.75,{cast:true});
-add(new THREE.CylinderGeometry(0.14,0.14,1.0,14),fabric,-0.62,0.83,1.75,{rx:Math.PI/2,cast:true});
-add(new THREE.CylinderGeometry(0.14,0.14,1.0,14),fabric,0.62,0.83,1.75,{rx:Math.PI/2,cast:true});
+/* your rocking chair: rocks about the floor beneath you, carrying the camera, hands and armrests */
+const rocker=new THREE.Group(); rocker.position.set(CAM_BASE.x,0,CAM_BASE.z); scene.add(rocker);
+const tilt=new THREE.Group(); rocker.add(tilt);
+const chairWood=M({map:woodTex,color:0x9a6a45,roughness:.6});
+for(const sx of [-1,1]){
+  // armrest with a rolled front, spindles beneath, curved runner on the floor
+  add(new THREE.BoxGeometry(0.075,0.035,0.62),chairWood,sx*0.38,0.72,-0.2,{cast:true},tilt);
+  add(new THREE.CylinderGeometry(0.03,0.03,0.08,14),chairWood,sx*0.38,0.715,-0.51,{rz:Math.PI/2,cast:true},tilt);
+  for(const z of [-0.45,-0.25,-0.05]) add(new THREE.CylinderGeometry(0.012,0.014,0.27,8),chairWood,sx*0.38,0.57,z,{cast:true},tilt);
+  add(new THREE.TorusGeometry(1.6,0.022,6,40,0.62),chairWood,sx*0.33,1.6,-0.05,{ry:Math.PI/2,rz:-Math.PI/2-0.31,cast:true},tilt);
+}
 const plaidTex=canvasTex(128,128,(g,w,h)=>{g.fillStyle="#2f4a3a";g.fillRect(0,0,w,h);
   for(let i=0;i<w;i+=32){g.fillStyle="rgba(180,60,50,.75)";g.fillRect(i+10,0,10,h);g.fillRect(0,i+10,w,10);g.fillStyle="rgba(230,200,140,.5)";g.fillRect(i+26,0,2,h);g.fillRect(0,i+26,w,2)}},[2,2]);
-add(new THREE.CylinderGeometry(0.155,0.155,0.62,16,1,false,-0.3,Math.PI+0.6),M({map:plaidTex,roughness:1}),-0.62,0.83,1.5,{rx:Math.PI/2,cast:true});
-add(new THREE.BoxGeometry(0.02,0.36,0.6),M({map:plaidTex,roughness:1}),-0.78,0.62,1.5,{rz:0.08,cast:true});
+add(new THREE.CylinderGeometry(0.05,0.05,0.4,16,1,false,-0.6,Math.PI+1.2),M({map:plaidTex,roughness:1}),-0.38,0.73,-0.12,{rx:Math.PI/2,cast:true},tilt);
+add(new THREE.BoxGeometry(0.02,0.26,0.4),M({map:plaidTex,roughness:1}),-0.43,0.6,-0.12,{rz:0.1,cast:true},tilt);
+const ROCK={amp:0.045,period:4.6,prevVel:0,eye:new THREE.Vector3(),look:new THREE.Vector3(),fwd:new THREE.Vector3()};
 const MUG={x:-1.1,y:0.695,z:0.75};
 add(new THREE.CylinderGeometry(0.28,0.28,0.04,20),woodMat,-1.15,0.62,0.75,{cast:true}); add(new THREE.CylinderGeometry(0.04,0.05,0.6,8),woodMat,-1.15,0.3,0.75,{cast:true});
 add(new THREE.CylinderGeometry(0.05,0.045,0.11,16),M({color:0x3f6f78,roughness:.4}),MUG.x,MUG.y,MUG.z,{cast:true});
@@ -1002,6 +1029,9 @@ function makeAvatar(p){
   const box=(w,h,d,m,x,y,z)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;g.add(o);return o};
   box(0.74,0.2,0.66,chairM,0,0.42,0); box(0.74,0.8,0.16,chairM,0,0.84,-0.32);
   box(0.14,0.26,0.66,chairM,-0.37,0.6,0); box(0.14,0.26,0.66,chairM,0.37,0.6,0);
+  for(const sx of [-1,1]){const r=new THREE.Mesh(new THREE.TorusGeometry(1.6,0.02,6,30,0.55),M({map:woodTex,color:0x7a5034}));
+    r.position.set(sx*0.33,1.6,0); r.rotation.set(0,Math.PI/2,-Math.PI/2-0.275); r.castShadow=true; g.add(r)}
+  g.rotation.order="YXZ";
   const body=new THREE.Group(); g.add(body);
   const torso=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.2,0.5,14),jumperM); torso.position.set(0,0.8,-0.08); body.add(torso);
   const head=new THREE.Mesh(new THREE.SphereGeometry(0.105,16,12),skinMat); head.position.set(0,1.18,-0.04); body.add(head);
@@ -1124,6 +1154,7 @@ function netTick(dt,t){
     const p=pl.p, ins=ease(p/0.3)*(1-ease((p-0.6)/0.4)), wrap=p>0.3&&p<0.6?Math.sin((p-0.3)/0.3*Math.PI*2):0;
     pl.nr.rotation.set(-ins*0.35, wrap*0.15, ins*0.4+Math.sin(pl.tick*Math.PI)*0.25);
     pl.nl.rotation.z=-ins*0.12; pl.nl.rotation.x=ins*0.1;
+    pl.g.rotation.x=Math.sin(t*(2*Math.PI/(4.2+pl.phase*0.15))+pl.phase)*0.04;
     pl.body.position.y=Math.sin(t*1.2+pl.phase)*0.004; pl.head.rotation.z=Math.sin(t*0.5+pl.phase)*0.05;
     for(let i=pl.emotes.length-1;i>=0;i--){const e=pl.emotes[i]; e.t+=dt; e.s.position.y=1.45+e.t*0.35; e.s.material.opacity=Math.max(0,1-Math.max(0,e.t-1.4)/0.6);
       if(e.t>2){pl.g.remove(e.s); e.s.material.map.dispose(); e.s.material.dispose(); pl.emotes.splice(i,1)}}
@@ -1258,8 +1289,17 @@ function frame(){
 
   // camera breathing
   const sway=reduce?0:1;
-  camera.position.set(CAM_BASE.x+Math.sin(time*.35)*0.015*sway, CAM_BASE.y+Math.sin(time*.9)*0.008*sway, CAM_BASE.z);
-  camera.lookAt(LOOK.x+Math.sin(time*.23)*0.05*sway, LOOK.y, LOOK.z);
+  // rocking: a slow, slightly lopsided swing, with a creak as the chair turns at each end
+  const w=2*Math.PI/ROCK.period, amp=ROCK.amp*sway;
+  const theta=amp*(Math.sin(time*w)+0.12*Math.sin(2*time*w+0.6));
+  const vel=Math.cos(time*w)+0.24*Math.cos(2*time*w+0.6);
+  if(amp>0&&Math.sign(vel)!==Math.sign(ROCK.prevVel)&&ROCK.prevVel!==0){ if(Math.random()<0.85) creak(vel<0?1:0.7, vel<0?1:1.18) }
+  ROCK.prevVel=vel;
+  ROCK.fwd.set(LOOK.x-CAM_BASE.x,0,LOOK.z-CAM_BASE.z); const flat=ROCK.fwd.length(); ROCK.fwd.normalize();
+  rocker.rotation.set(0,Math.atan2(-ROCK.fwd.x,-ROCK.fwd.z),0); tilt.rotation.x=-theta; rocker.updateMatrixWorld(true);
+  ROCK.eye.set(Math.sin(time*.35)*0.012*sway, CAM_BASE.y+Math.sin(time*.9)*0.006*sway, 0); tilt.localToWorld(ROCK.eye);
+  ROCK.look.set(Math.sin(time*.23)*0.05*sway, LOOK.y, -flat); tilt.localToWorld(ROCK.look);
+  camera.position.copy(ROCK.eye); camera.lookAt(ROCK.look);
 
   // fire
   flare=Math.max(0,flare-dt*4);
