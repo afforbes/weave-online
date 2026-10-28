@@ -625,7 +625,7 @@ function makeNeedle(){
 }
 const needleL=makeNeedle(), needleR=makeNeedle(); hands.add(needleL,needleR);
 const V3=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
-const POSE={L:{base:V3(-0.17,-0.21,0.05),tip:V3(-0.016,0.135,-0.045)}, R:{base:V3(0.17,-0.215,0.06),tip:V3(0.016,0.128,-0.03)}};
+const POSE={L:{base:V3(-0.25,-0.15,0.05),tip:V3(-0.016,0.03,-0.045)}, R:{base:V3(0.25,-0.155,0.06),tip:V3(0.016,0.024,-0.03)}};
 const UPV=V3(0,1,0), ZAX=V3(0,0,1), _d=V3(), _bx=V3(), _bz=V3(), _m4=new THREE.Matrix4();
 // stable frame: needle along local y, local z kept facing you so the hands never roll around the needle
 function poseNeedle(n,base,tip){_d.subVectors(tip,base).normalize(); _bx.crossVectors(_d,ZAX).normalize(); _bz.crossVectors(_bx,_d);
@@ -677,7 +677,8 @@ const ease=t=>t<=0?0:t>=1?1:t*t*(3-2*t);
 
 /* gesture-driven stitch state: p runs 0→1 across insert, wrap, pull through, slip off */
 const gest={p:0,mode:"idle",type:"K",dragF:0,on:true,pending:null};
-const INSERT={K:V3(-0.014,0.004,-0.026),P:V3(-0.014,0.004,0.026),C:V3(-0.012,0.016,-0.026),O:V3(0.004,0.02,0.014)};
+const INSERT={K:V3(-0.032,0.012,-0.03),P:V3(-0.032,0.012,0.03),C:V3(-0.03,0.022,-0.03),O:V3(0.006,0.026,0.016)};
+const fingerOff=V3(), fingerTarget=V3(), ZERO3=V3(); let follow=0;
 
 /* stitch loops sitting on the needles */
 const QX=new THREE.Quaternion().setFromAxisAngle(V3(1,0,0),Math.PI/2);
@@ -786,7 +787,8 @@ function animateHands(dt,t,sway){
   const bob=Math.sin(t*1.1)*0.002*sway;
   // left needle: dips as the old loop is slipped off
   const dip=ease((p-0.55)/0.3)*(1-ease((p-0.92)/0.08));
-  _tA.copy(POSE.L.tip); _tA.y+=bob-0.007*dip; _tA.x-=0.004*dip;
+  const meet=Math.sin(Math.min(1,p)*Math.PI);
+  _tA.copy(POSE.L.tip); _tA.y+=bob-0.007*dip+0.006*meet; _tA.x+=-0.004*dip+0.008*meet+fingerOff.x*0.12; _tA.z+=fingerOff.z*0.1;
   poseNeedle(needleL,POSE.L.base,_tA);
   // right needle: insert → hold while wrapping → pull new loop through → return
   onNeedle(needleL,0,_tB).add(INSERT[ty]||INSERT.K);
@@ -795,8 +797,13 @@ function animateHands(dt,t,sway){
   else if(p<0.6) _tip.copy(_tB).add(_va.set(0,Math.sin((p-0.3)/0.3*Math.PI*2)*0.0018,0));
   else if(p<0.85) _tip.lerpVectors(_tB,_tC,ease((p-0.6)/0.25));
   else _tip.lerpVectors(_tC,POSE.R.tip,ease((p-0.85)/0.15));
+  // while you swipe, the tip also tracks your finger stroke for stroke, then settles back after release
+  const dragging=gest.mode==="drag";
+  follow+=((dragging?1:0)-follow)*Math.min(1,dt*(dragging?14:5));
+  fingerOff.lerp(dragging?fingerTarget:ZERO3,Math.min(1,dt*(dragging?20:6)));
+  _tip.sub(POSE.R.tip).multiplyScalar(1-0.45*follow).add(POSE.R.tip).addScaledVector(fingerOff,0.8);
   _tip.y+=bob*0.7;
-  _base.copy(POSE.R.base).addScaledVector(_va.set(-0.026,0.012,0.012),Math.sin(Math.min(1,p)*Math.PI));
+  _base.copy(POSE.R.base).addScaledVector(_va.set(-0.026,0.012,0.012),Math.sin(Math.min(1,p)*Math.PI)).addScaledVector(fingerOff,0.35);
   poseNeedle(needleR,_base,_tip);
 
   // loops
@@ -988,8 +995,8 @@ function resize(){
   renderer.setSize(W,H,false); trail.width=W*DPR; trail.height=H*DPR; tctx.setTransform(DPR,0,0,DPR,0,0);
   const aspect=W/H; camera.aspect=aspect; LOOK.x=aspect<1?1.35:0.55; camera.fov=aspect<1?72:58; camera.updateProjectionMatrix();
   const d=0.6, halfH=d*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)), halfW=halfH*aspect;
-  const s=Math.min(1.35,(halfW*2)/0.5);
-  hands.scale.setScalar(s); hands.position.set(0,-halfH*(aspect<1?0.3:0.17),-d);
+  const s=Math.min(1.35,(halfW*2)/0.6);
+  hands.scale.setScalar(s); hands.position.set(0,-halfH*(aspect<1?0.28:0.2),-d);
 }
 window.addEventListener("resize",resize); resize();
 
@@ -1001,11 +1008,14 @@ trail.addEventListener("pointerdown",e=>{
   if(!started) return; e.preventDefault(); trail.setPointerCapture?.(e.pointerId);
   if(gest.mode==="finish") commitPending();
   stroke=[{x:e.clientX,y:e.clientY}]; trailPts.length=0; trailPts.push({x:e.clientX,y:e.clientY,t:performance.now()});
-  gest.mode="drag"; gest.type=upcoming(1)[0]; gest.dragF=0; gest.on=true;
+  gest.mode="drag"; gest.type=upcoming(1)[0]; gest.dragF=0; gest.on=true; fingerTarget.set(0,0,0);
 });
 trail.addEventListener("pointermove",e=>{
   if(!stroke) return; const evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];
   for(const ev of evs){stroke.push({x:ev.clientX,y:ev.clientY}); trailPts.push({x:ev.clientX,y:ev.clientY,t:performance.now()})}
+  const s0=stroke[0], last=stroke[stroke.length-1], G=0.42*Math.min(W,H), k=0.1/G;
+  const ox=(last.x-s0.x)*k, up=-(last.y-s0.y)*k;
+  fingerTarget.set(ox,up*0.45,-up*0.8); if(fingerTarget.length()>0.12) fingerTarget.setLength(0.12);
   const lp=liveProgress(stroke,gest.type); gest.on=lp.on;
   if(lp.on) gest.dragF=Math.max(gest.dragF*0.98,lp.f);
 });
