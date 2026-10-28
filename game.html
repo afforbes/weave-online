@@ -1087,7 +1087,7 @@ function animateHands(dt,t,sway){
     a.mesh.position.copy(a.pos); a.mesh.quaternion.copy(_qL).slerp(_qR,s);
     a.mesh.material.color.set(loopColor(c));
     anc[c].copy(a.pos); anc[c].y-=0.012;
-    ancRow[c]=tg.worked?0:1;
+    ancRow[c]=tg.worked?0:ROWS_PER_KNIT; // the unknitted band above a waiting loop has no height
   }
   // the fresh loop formed by the wrap, riding the right needle tip
   const nl=ease((p-0.42)/0.18)*(1-ease((p-0.9)/0.1));
