@@ -1,0 +1,1181 @@
+<title>Weave Online</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sniglet:wght@400;800&family=Nunito+Sans:wght@400;600;700&display=swap">
+<style>
+/* Layout: full-bleed firelit WebGL cabin; HUD tucked into safe-area corners; stitch card floats top-centre */
+:root{
+  --night:#0f0b09;
+  --bark:rgba(34,22,16,.80);
+  --bark-line:rgba(255,190,130,.20);
+  --wool:#f6e9d7;
+  --wool-dim:#c7b19a;
+  --ember:#ffa45c;
+  --moss:#a9c77f;
+  --rose:#f09a8c;
+  --display:"Sniglet","Trebuchet MS",system-ui,sans-serif;
+  --body:"Nunito Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--night);color:var(--wool);font-family:var(--body);overflow:hidden;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#scene,#trail{position:fixed;inset:0;width:100%;height:100%;display:block}
+#trail{touch-action:none;cursor:crosshair}
+#warm,#vignette{position:fixed;inset:0;pointer-events:none}
+#warm{background:radial-gradient(ellipse 65% 70% at 88% 62%,rgba(255,118,40,.28),rgba(255,90,30,.08) 55%,transparent 75%);mix-blend-mode:screen;opacity:.7}
+#vignette{background:radial-gradient(ellipse 85% 80% at 55% 50%,transparent 50%,rgba(8,4,2,.55) 85%,rgba(4,2,1,.8) 100%)}
+.hud{position:fixed;left:0;right:0;pointer-events:none;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.hud.top{top:0;padding-top:calc(12px + env(safe-area-inset-top,0px))}
+.hud.bottom{bottom:0;align-items:flex-end;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+.wordmark{font-family:var(--display);font-weight:800;font-size:1.25rem;letter-spacing:.01em;line-height:1;
+  color:var(--wool);text-shadow:0 2px 12px rgba(255,140,60,.45)}
+.wordmark small{display:block;font-family:var(--body);font-weight:600;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--wool-dim);margin-top:6px}
+.stats{display:flex;gap:14px;font-variant-numeric:tabular-nums;text-align:right}
+.stat b{display:block;font-family:var(--display);font-size:1.25rem;line-height:1;color:var(--wool)}
+.stat span{font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--wool-dim)}
+.stat.streak b{color:var(--ember)}
+
+.card{position:fixed;left:50%;transform:translateX(-50%);top:calc(66px + env(safe-area-inset-top,0px));
+  pointer-events:none;display:flex;align-items:center;gap:12px;padding:10px 14px 10px 10px;
+  background:var(--bark);border:1px solid var(--bark-line);border-radius:18px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  box-shadow:0 8px 30px rgba(0,0,0,.35)}
+.glyph{width:88px;height:88px;flex:none}
+.glyph .arrow{fill:none;stroke:var(--wool);stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+.glyph .ghost{fill:none;stroke:rgba(246,233,215,.18);stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+.glyph .live{fill:none;stroke:var(--ember);stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:100 100;animation:draw 1.7s ease-in-out infinite}
+.glyph .start{fill:var(--wool)}
+@keyframes draw{0%{stroke-dashoffset:100}75%,100%{stroke-dashoffset:0}}
+.glyph .live{animation-duration:2.6s}
+.card-text{min-width:0}
+.card-name{font-family:var(--display);font-weight:800;font-size:1.15rem;line-height:1.05}
+.phases{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;max-width:200px}
+.phases span{font-size:.66rem;font-weight:700;padding:3px 7px;border-radius:999px;background:rgba(255,220,180,.07);color:var(--wool-dim);transition:background .15s,color .15s}
+.phases span.on{background:var(--ember);color:#2a160b}
+.phases span.done{color:var(--moss)}
+.card-row{font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--moss);margin-top:7px}
+.queue{display:flex;gap:4px;margin-top:6px;align-items:center}
+.queue svg{width:22px;height:22px}
+.queue path{fill:none;stroke:rgba(246,233,215,.45);stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+.queue em{font-style:normal;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--wool-dim);margin-right:2px}
+
+.swatches{display:flex;gap:8px;pointer-events:auto;padding:8px;background:var(--bark);border:1px solid var(--bark-line);border-radius:999px}
+.sw{width:30px;height:30px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;
+  box-shadow:inset 0 -4px 0 rgba(0,0,0,.25),inset 0 3px 0 rgba(255,255,255,.18)}
+.sw[aria-pressed="true"]{border-color:var(--wool);transform:scale(1.12)}
+.sw:focus-visible,.icon-btn:focus-visible,.btn:focus-visible{outline:3px solid var(--ember);outline-offset:2px}
+.icon-btn{pointer-events:auto;width:46px;height:46px;border-radius:50%;background:var(--bark);border:1px solid var(--bark-line);color:var(--wool);
+  font:600 .7rem var(--body);letter-spacing:.06em;cursor:pointer;display:grid;place-items:center}
+.icon-btn svg{width:20px;height:20px}
+
+.toast{position:fixed;left:50%;top:52%;transform:translate(-50%,-50%);pointer-events:none;text-align:center;
+  font-family:var(--display);font-weight:800;font-size:1.7rem;color:var(--wool);text-shadow:0 3px 18px rgba(0,0,0,.6),0 0 24px rgba(255,150,70,.5);
+  opacity:0;transition:opacity .25s, transform .35s;white-space:nowrap}
+.toast small{display:block;font-family:var(--body);font-weight:600;font-size:.85rem;color:var(--wool-dim);margin-top:4px}
+.toast.show{opacity:1;transform:translate(-50%,-62%)}
+.toast.miss{color:var(--rose)}
+
+.intro{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 70%,rgba(60,28,12,.55),rgba(10,7,5,.88));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:calc(16px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-bottom,0px));overflow:auto}
+.intro-inner{max-width:420px;text-align:center;display:flex;flex-direction:column;gap:18px;align-items:center}
+.intro h1{font-family:var(--display);font-weight:800;font-size:clamp(2.6rem,11vw,3.6rem);line-height:.95;margin:0;text-wrap:balance;
+  text-shadow:0 4px 30px rgba(255,140,60,.55)}
+.intro p{margin:0;color:var(--wool-dim);line-height:1.5;font-size:1rem;max-width:34ch}
+.legend{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%}
+.legend div{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:14px;background:rgba(255,220,180,.06);border:1px solid var(--bark-line)}
+.legend svg{width:56px;height:56px}
+.legend circle{fill:var(--wool)}
+.legend path{fill:none;stroke:var(--ember);stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+.legend span{font-size:.72rem;font-weight:700;color:var(--wool)}
+.btn{font-family:var(--display);font-weight:800;font-size:1.2rem;color:#2a160b;background:var(--ember);border:0;border-radius:999px;padding:14px 28px;cursor:pointer;
+  box-shadow:0 6px 0 #b8622a,0 10px 30px rgba(255,140,60,.4)}
+.btn:active{transform:translateY(3px);box-shadow:0 3px 0 #b8622a}
+.fine{font-size:.75rem!important;opacity:.8}
+.join{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.field{display:flex;flex-direction:column;gap:5px;text-align:left;min-width:0}
+.field label{font-size:.66rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--wool-dim)}
+.field input{font:600 1rem var(--body);color:var(--wool);background:rgba(255,220,180,.07);border:1px solid var(--bark-line);border-radius:12px;padding:10px 12px;min-width:0;width:100%;-webkit-user-select:text;user-select:text}
+.field input:focus-visible{outline:3px solid var(--ember);outline-offset:1px}
+.btn-row{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+.btn.alt{background:transparent;color:var(--wool);box-shadow:inset 0 0 0 2px var(--bark-line)}
+.btn.alt:active{transform:translateY(1px);box-shadow:inset 0 0 0 2px var(--ember)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.bottom-left{display:flex;flex-direction:column;gap:8px;align-items:flex-start;min-width:0}
+.circle-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;pointer-events:auto}
+.pill{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:6px 14px;border-radius:16px;background:var(--bark);border:1px solid var(--bark-line);color:var(--wool);cursor:pointer;font:inherit;text-align:left}
+.pill b{font-family:var(--display);font-size:.9rem;line-height:1.1}
+.pill span{font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--moss)}
+.emotes{display:flex;gap:4px;padding:4px;border-radius:999px;background:var(--bark);border:1px solid var(--bark-line)}
+.emote{width:34px;height:34px;border-radius:50%;border:0;background:transparent;font-size:1.05rem;cursor:pointer;line-height:1}
+.emote:active{background:rgba(255,220,180,.15)}
+.pill:focus-visible,.emote:focus-visible{outline:3px solid var(--ember);outline-offset:2px}
+.float-emote{position:fixed;left:50%;bottom:calc(140px + env(safe-area-inset-bottom,0px));font-size:2.4rem;pointer-events:none;animation:floatUp 1.6s ease-out forwards}
+@keyframes floatUp{0%{transform:translate(-50%,0) scale(.6);opacity:0}15%{opacity:1;transform:translate(-50%,-10px) scale(1.1)}100%{transform:translate(-50%,-120px) scale(1);opacity:0}}
+@media (prefers-reduced-motion: reduce){.float-emote{animation-duration:.8s}}
+.err{position:fixed;inset:0;display:grid;place-items:center;text-align:center;padding:24px}
+@media (prefers-reduced-motion: reduce){.glyph .live{animation:none;stroke-dashoffset:0}.toast{transition:opacity .2s}}
+@media (max-width:420px){.wordmark{font-size:1.05rem}.stats{gap:10px}.stat b{font-size:1.05rem}.glyph{width:72px;height:72px}.phases{max-width:170px}.sw{width:26px;height:26px}.swatches{gap:6px}}
+</style>
+
+<canvas id="scene" aria-hidden="true"></canvas>
+<div id="warm" aria-hidden="true"></div><div id="vignette" aria-hidden="true"></div>
+<canvas id="trail" aria-label="Knitting area: swipe the shape shown on the stitch card"></canvas>
+
+<div class="hud top">
+  <div class="wordmark">Weave Online<small id="patternLabel">Garter stitch</small></div>
+  <div class="stats">
+    <div class="stat"><b id="stStitches">0</b><span>Stitches</span></div>
+    <div class="stat"><b id="stRows">0</b><span>Rows</span></div>
+    <div class="stat streak"><b id="stStreak">0</b><span>Streak</span></div>
+  </div>
+</div>
+
+<div class="card" id="card">
+  <svg class="glyph" viewBox="0 0 100 100" aria-hidden="true">
+    <path class="ghost" id="gGhost"></path>
+    <path class="live" id="gLive" pathLength="100"></path>
+    <path class="arrow" id="gArrow"></path>
+    <circle class="start" id="gStart" r="6"></circle>
+  </svg>
+  <div class="card-text">
+    <div class="card-name" id="cName">Knit</div>
+    <div class="phases" id="phases" aria-live="polite"></div>
+    <div class="queue" id="queue"></div>
+    <div class="card-row" id="cRow">Row 1 · stitch 1 of 12</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="hud bottom">
+  <div class="bottom-left">
+    <div class="circle-row" id="circleRow" hidden>
+      <button class="pill" id="circlePill" aria-label="Copy invite link"><b id="circleName"></b><span id="circleCount"></span></button>
+      <div class="emotes" role="group" aria-label="Send a reaction">
+        <button class="emote" data-e="wave" aria-label="Wave">👋</button><button class="emote" data-e="tea" aria-label="Tea">☕</button><button class="emote" data-e="yarn" aria-label="Yarn">🧶</button><button class="emote" data-e="heart" aria-label="Love">❤️</button>
+      </div>
+    </div>
+    <div class="swatches" id="swatches" role="group" aria-label="Yarn colour"></div>
+  </div>
+  <button class="icon-btn" id="soundBtn" aria-label="Sound on" aria-pressed="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path id="soundWave" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+  </button>
+</div>
+
+<div class="intro" id="intro">
+  <div class="intro-inner">
+    <h1>Weave Online</h1>
+    <p>Pull your chair up to the fire. Each stitch is one swipe that traces the needle tip: push it into the loop, wrap the yarn, pull it through, slip it off. Your needles move as you draw.</p>
+    <div class="legend" id="legend"></div>
+    <form class="join" id="joinForm">
+      <div class="field"><label for="nameInput">Your name</label><input id="nameInput" maxlength="16" autocomplete="nickname" spellcheck="false"></div>
+      <div class="field"><label for="roomInput">Circle</label><input id="roomInput" maxlength="24" autocomplete="off" autocapitalize="none" spellcheck="false" pattern="[a-z0-9-]{3,24}"></div>
+    </form>
+    <div class="btn-row">
+      <button class="btn" id="circleBtn" type="button">Join the circle</button>
+      <button class="btn alt" id="startBtn" type="button">Knit alone</button>
+    </div>
+    <p class="fine" id="circleNote" hidden></p>
+    <p class="fine">Start at the dot and finish at the arrow. In a circle, everyone's finished rows join one shared blanket. 12 stitches make a row. The pattern changes every 4 rows, and neat stitches in a row stoke the fire.</p>
+  </div>
+</div>
+
+<script>
+/* Knitting circles: set this to your deployed room server (see README), e.g.
+   window.WEAVE_SERVER = "https://weave-online-server.your-name.workers.dev"; */
+window.WEAVE_SERVER = window.WEAVE_SERVER || "";
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ---------------- stitch gestures: each traces the needle tip's real path ---------------- */
+const N = 64;
+// segments: ["L",x,y,phase] straight move, ["A",cx,cy,turns,phase] arc around a centre (+ turns = clockwise on screen)
+const STITCH = {
+  K:{name:"Knit", hint:"Stab in ↖, loop the yarn, pull down, slip off →",
+     phases:["Insert","Wrap","Pull through","Slip off"],
+     start:[0.95,0.72], segs:[["L",0.45,0.36,0],["A",0.45,0.18,-1,1],["L",0.45,0.86,2],["L",0.98,0.86,3]]},
+  P:{name:"Purl", hint:"Slide in ←, loop the yarn, push up ↗, slip off →",
+     phases:["Insert in front","Wrap","Push through","Slip off"],
+     start:[0.98,0.45], segs:[["L",0.42,0.45,0],["A",0.42,0.63,-1,1],["L",0.72,0.08,2],["L",1.02,0.08,3]]},
+  O:{name:"Yarn over", hint:"Lift ↑, sweep a big loop over, lay down ↘, carry on →",
+     phases:["Yarn forward","Wrap over","Lay down","Carry on"],
+     start:[0.18,0.78], segs:[["L",0.18,0.4,0],["A",0.46,0.4,1,1],["L",0.6,0.8,2],["L",0.98,0.8,3]]},
+  C:{name:"Cable", hint:"Lift ↗, cross ↘, loop, pull up ↗, slip off →",
+     phases:["Lift & cross","Wrap","Pull through","Slip off"],
+     start:[0.05,0.62], segs:[["L",0.3,0.18,0],["L",0.55,0.78,0],["A",0.55,0.62,-1,1],["L",0.82,0.18,2],["L",1.05,0.18,3]]},
+};
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+function pathLen(p){let d=0;for(let i=1;i<p.length;i++)d+=dist(p[i-1],p[i]);return d}
+function buildPath(k){
+  const S=STITCH[k]; let x=S.start[0], y=S.start[1]; const pts=[{x,y,ph:0}];
+  for(const sg of S.segs){
+    if(sg[0]==="L"){const [,tx,ty,ph]=sg, n=Math.max(4,Math.ceil(Math.hypot(tx-x,ty-y)*60));
+      for(let i=1;i<=n;i++)pts.push({x:x+(tx-x)*i/n,y:y+(ty-y)*i/n,ph}); x=tx;y=ty;}
+    else{const [,cx,cy,turns,ph]=sg, r=Math.hypot(x-cx,y-cy), a0=Math.atan2(y-cy,x-cx), n=Math.ceil(Math.abs(turns)*r*2*Math.PI*60);
+      for(let i=1;i<=n;i++){const a=a0+turns*2*Math.PI*i/n;pts.push({x:cx+r*Math.cos(a),y:cy+r*Math.sin(a),ph})} x=pts[pts.length-1].x;y=pts[pts.length-1].y;}
+  }
+  return pts;
+}
+const RAW={}, PHASE_END={};
+for(const k in STITCH){
+  const p=buildPath(k); RAW[k]=p;
+  let L=0; const total=pathLen(p), ends=[0,0,0,0];
+  for(let i=1;i<p.length;i++){L+=dist(p[i-1],p[i]); ends[p[i].ph]=L/total}
+  for(let i=1;i<4;i++) ends[i]=Math.max(ends[i],ends[i-1]); ends[3]=1;
+  PHASE_END[k]=ends;
+}
+const rawPts=k=>RAW[k];
+function resample(pts,n){
+  const I=pathLen(pts)/(n-1); if(!(I>0)) return null;
+  const out=[{x:pts[0].x,y:pts[0].y}]; let D=0, prev=pts[0];
+  for(let i=1;i<pts.length;i++){
+    const cur=pts[i]; let d=dist(prev,cur);
+    while(D+d>=I && d>0 && out.length<n){
+      const t=(I-D)/d; const q={x:prev.x+t*(cur.x-prev.x),y:prev.y+t*(cur.y-prev.y)};
+      out.push(q); prev=q; d=dist(prev,cur); D=0;
+    }
+    D+=d; prev=cur;
+  }
+  while(out.length<n) out.push({x:pts[pts.length-1].x,y:pts[pts.length-1].y});
+  return out;
+}
+function normalize(p){
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  for(const q of p){x0=Math.min(x0,q.x);y0=Math.min(y0,q.y);x1=Math.max(x1,q.x);y1=Math.max(y1,q.y)}
+  const s=Math.max(x1-x0,y1-y0)||1, cx=(x0+x1)/2, cy=(y0+y1)/2;
+  return p.map(q=>({x:(q.x-cx)/s,y:(q.y-cy)/s}));
+}
+const TEMPLATES={}; for(const k in STITCH) TEMPLATES[k]=normalize(resample(RAW[k],N));
+const avgDist=(a,b)=>{let d=0;for(let i=0;i<N;i++)d+=dist(a[i],b[i]);return d/N};
+function score(stroke){
+  const r=resample(stroke,N); if(!r) return null;
+  const p=normalize(r); const out={};
+  for(const k in TEMPLATES) out[k]=avgDist(p,TEMPLATES[k]);
+  return out;
+}
+/* prefixes: how far through the gesture is a partial swipe? */
+const PREFIX={};
+for(const k in STITCH){
+  PREFIX[k]=[]; const raw=RAW[k], total=pathLen(raw);
+  for(let f=0.08;f<=1.001;f+=0.04){
+    let L=0,i=1; for(;i<raw.length;i++){L+=dist(raw[i-1],raw[i]); if(L>=f*total) break}
+    const r=resample(raw.slice(0,Math.min(raw.length,i+1)),N); if(r) PREFIX[k].push({f,pts:normalize(r)});
+  }
+}
+function liveProgress(pts,target){
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(const p of pts){x0=Math.min(x0,p.x);y0=Math.min(y0,p.y);x1=Math.max(x1,p.x);y1=Math.max(y1,p.y)}
+  if(Math.max(x1-x0,y1-y0)<14||pts.length<4) return {f:0,on:true};
+  const r=resample(pts,N); if(!r) return {f:0,on:true};
+  const q=normalize(r); let best=null;
+  for(const t of PREFIX[target]){const d=avgDist(q,t.pts), s=d+0.04*(1-t.f); if(!best||s<best.s) best={s,d,f:t.f}}
+  return {f:best.d<0.2?best.f:0, on:best.d<0.16};
+}
+/* gesture fraction → needle choreography (insert 0–.3, wrap .3–.6, pull .6–.85, slip .85–1) */
+function phaseP(k,f){
+  const e=PHASE_END[k], P=[0,0.3,0.6,0.85,1]; let s=0;
+  for(let i=0;i<4;i++){const a=s,b=e[i]; if(f<=b||i===3){const t=b>a?Math.min(1,Math.max(0,(f-a)/(b-a))):1; return P[i]+(P[i+1]-P[i])*t} s=b}
+  return 1;
+}
+const phaseOf=p=>p<0.3?0:p<0.6?1:p<0.85?2:3;
+
+/* svg path for a stitch glyph inside a 100 box */
+function glyphPath(k,pad=14){
+  const pts=rawPts(k); let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  for(const p of pts){x0=Math.min(x0,p.x);y0=Math.min(y0,p.y);x1=Math.max(x1,p.x);y1=Math.max(y1,p.y)}
+  const s=(100-pad*2)/Math.max(x1-x0,y1-y0), ox=(100-(x1-x0)*s)/2-x0*s, oy=(100-(y1-y0)*s)/2-y0*s;
+  const m=pts.filter((p,i)=>i%2===0||i===pts.length-1).map(p=>[ox+p.x*s,oy+p.y*s]);
+  const e=m[m.length-1], q=m[m.length-3], ang=Math.atan2(e[1]-q[1],e[0]-q[0]), A=9;
+  const arrow=`M${(e[0]-A*Math.cos(ang-0.5)).toFixed(1)} ${(e[1]-A*Math.sin(ang-0.5)).toFixed(1)}L${e[0].toFixed(1)} ${e[1].toFixed(1)}L${(e[0]-A*Math.cos(ang+0.5)).toFixed(1)} ${(e[1]-A*Math.sin(ang+0.5)).toFixed(1)}`;
+  return {d:"M"+m.map(p=>p[0].toFixed(1)+" "+p[1].toFixed(1)).join("L"), start:m[0], arrow};
+}
+
+/* ---------------- game state ---------------- */
+const YARNS=[
+  {name:"Moss",hex:"#7f9c5b"},{name:"Cranberry",hex:"#b4443f"},{name:"Oat",hex:"#e3d2b4"},
+  {name:"Heather",hex:"#8a7aa8"},{name:"Ochre",hex:"#d39a3a"},{name:"Loch",hex:"#3f7f86"}
+];
+const PATTERNS=[
+  {name:"Garter stitch", row:(r,i)=>"K"},
+  {name:"1×1 rib", row:(r,i)=>i%2?"P":"K"},
+  {name:"Eyelet lace", row:(r,i)=>(i%4===2 && r%2===0)?"O":"K"},
+  {name:"Cable twist", row:(r,i)=>(i%6===2||i%6===3)?"C":(i%6===0||i%6===5?"P":"K")},
+  {name:"Seed stitch", row:(r,i)=>(i+r)%2?"P":"K"},
+];
+const PER_ROW=12, MAX_ROWS=32;
+const STORE="weave-online-v1";
+const castOn=()=>[Array.from({length:PER_ROW},()=>({t:"K",c:"#e3d2b4"})),Array.from({length:PER_ROW},()=>({t:"P",c:"#e3d2b4"}))];
+let state={rows:castOn(), cur:[], rowNum:0, stitches:0, color:0, best:0};
+let streak=0;
+
+const saved=window.claude?.hot?.data;
+function loadInitial(data){
+  if(data && data.rows) return data;
+  try{const s=JSON.parse(localStorage.getItem(STORE)||"null"); if(s&&s.rows) return s;}catch(e){}
+  return null;
+}
+function persist(){try{localStorage.setItem(STORE,JSON.stringify(state))}catch(e){}}
+window.claude?.hot?.snapshot?.(()=>state);
+
+const pattern=()=>PATTERNS[Math.floor(state.rowNum/4)%PATTERNS.length];
+const stitchAt=(r,i)=>pattern().row(r,i);
+function upcoming(n){
+  const out=[]; let r=state.rowNum, i=state.cur.length;
+  for(let k=0;k<n;k++){ const p=PATTERNS[Math.floor(r/4)%PATTERNS.length]; out.push(p.row(r,i)); i++; if(i>=PER_ROW){i=0;r++} }
+  return out;
+}
+
+/* ---------------- DOM ---------------- */
+const $=id=>document.getElementById(id);
+const legend=$("legend");
+for(const k of ["K","P","O","C"]){
+  const g=glyphPath(k,16); const d=document.createElement("div");
+  d.innerHTML=`<svg viewBox="0 0 100 100" aria-hidden="true"><path d="${g.d}"/><path d="${g.arrow}"/><circle cx="${g.start[0]}" cy="${g.start[1]}" r="6"/></svg><span>${STITCH[k].name}</span>`;
+  legend.appendChild(d);
+}
+const sw=$("swatches");
+YARNS.forEach((y,i)=>{const b=document.createElement("button");b.className="sw";b.id="yarn-"+i;b.style.background=y.hex;
+  b.setAttribute("aria-label",y.name+" yarn");b.addEventListener("click",()=>{state.color=i;renderSwatches();updateYarnBall();persist();netSend({t:"color",c:YARNS[i].hex})});sw.appendChild(b)});
+function renderSwatches(){[...sw.children].forEach((b,i)=>b.setAttribute("aria-pressed",String(i===state.color)))}
+
+function renderCard(){
+  const [k,...rest]=upcoming(4);
+  const g=glyphPath(k);
+  $("gGhost").setAttribute("d",g.d); $("gLive").setAttribute("d",g.d);
+  $("gStart").setAttribute("cx",g.start[0]); $("gStart").setAttribute("cy",g.start[1]); $("gArrow").setAttribute("d",g.arrow);
+  $("cName").textContent=STITCH[k].name; $("card").setAttribute("aria-label",STITCH[k].name+": "+STITCH[k].hint);
+  $("phases").innerHTML=STITCH[k].phases.map((n,i)=>`<span data-i="${i}">${n}</span>`).join("");
+  $("queue").innerHTML="<em>Next</em>"+rest.map(q=>`<svg viewBox="0 0 100 100" aria-label="${STITCH[q].name}"><path d="${glyphPath(q,10).d}"/></svg>`).join("");
+  $("cRow").textContent=`Row ${state.rowNum+1} · stitch ${state.cur.length+1} of ${PER_ROW}`;
+  $("patternLabel").textContent=pattern().name;
+  $("stStitches").textContent=state.stitches; $("stRows").textContent=state.rowNum; $("stStreak").textContent=streak;
+}
+let toastTimer;
+function toast(msg,sub="",miss=false){
+  const t=$("toast"); t.innerHTML=msg+(sub?`<small>${sub}</small>`:""); t.classList.toggle("miss",miss);
+  t.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),miss?1300:800);
+}
+
+/* ---------------- audio ---------------- */
+let actx=null, soundOn=true, fireBus=null, revIn=null, crackleTimer=null, flare=0;
+function initAudio(){
+  if(actx) return; try{actx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){return}
+  const SR=actx.sampleRate;
+  const noise=(sec,brown)=>{const b=actx.createBuffer(2,SR*sec,SR);for(let c=0;c<2;c++){const d=b.getChannelData(c);let l=0;
+    for(let i=0;i<d.length;i++){const w=Math.random()*2-1; if(brown){l=(l+0.02*w)/1.02; d[i]=l*3.5} else d[i]=w}}return b};
+  const loop=(buf,rate=1)=>{const s=actx.createBufferSource();s.buffer=buf;s.loop=true;s.playbackRate.value=rate;s.start(0,Math.random()*2);return s};
+  fireBus=actx.createGain(); fireBus.gain.value=soundOn?1:0; fireBus.connect(actx.destination);
+  // small wooden room
+  const ir=actx.createBuffer(2,SR*1.3,SR); for(let c=0;c<2;c++){const d=ir.getChannelData(c);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3.2)*0.6}
+  const rev=actx.createConvolver(); rev.buffer=ir; const wet=actx.createGain(); wet.gain.value=0.4; rev.connect(wet).connect(fireBus);
+  revIn=actx.createGain(); revIn.connect(rev);
+  const brown=noise(4,true), white=noise(2,false);
+  // deep rumble of the burning logs, breathing slowly
+  const rl=actx.createBiquadFilter(); rl.type="lowpass"; rl.frequency.value=150; rl.Q.value=0.9;
+  const rg=actx.createGain(); rg.gain.value=0.6; loop(brown,0.8).connect(rl).connect(rg).connect(fireBus);
+  const lfo=actx.createOscillator(); lfo.frequency.value=0.11; const lg=actx.createGain(); lg.gain.value=0.22; lfo.connect(lg).connect(rg.gain); lfo.start();
+  // soft roar of the flames
+  const rb=actx.createBiquadFilter(); rb.type="bandpass"; rb.frequency.value=420; rb.Q.value=0.6;
+  const roar=actx.createGain(); roar.gain.value=0.11; loop(brown,1.9).connect(rb).connect(roar).connect(fireBus);
+  const lfo2=actx.createOscillator(); lfo2.frequency.value=0.37; const lg2=actx.createGain(); lg2.gain.value=0.05; lfo2.connect(lg2).connect(roar.gain); lfo2.start();
+  // faint hiss of sap
+  const hp=actx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=4200; const hg=actx.createGain(); hg.gain.value=0.01;
+  loop(white).connect(hp).connect(hg).connect(fireBus);
+
+  const burst=(t,dur,ftype,freq,q,gain,send=0.3)=>{
+    const b=actx.createBuffer(1,Math.max(32,SR*dur|0),SR), d=b.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,4);
+    const s=actx.createBufferSource(); s.buffer=b; const f=actx.createBiquadFilter(); f.type=ftype; f.frequency.value=freq; f.Q.value=q;
+    const g=actx.createGain(); g.gain.value=gain; s.connect(f).connect(g); g.connect(fireBus);
+    const sg=actx.createGain(); sg.gain.value=send; g.connect(sg).connect(revIn); s.start(t);
+  };
+  const thump=(t,freq,dur,gain)=>{const o=actx.createOscillator(),g=actx.createGain(); o.frequency.setValueAtTime(freq,t); o.frequency.exponentialRampToValueAtTime(freq*0.55,t+dur);
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(gain,t+0.004); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(fireBus); const sg=actx.createGain(); sg.gain.value=0.4; g.connect(sg).connect(revIn); o.start(t); o.stop(t+dur+0.05)};
+  const crackle=()=>{
+    if(soundOn && actx.state==="running"){
+      const t=actx.currentTime+0.01, r=Math.random();
+      if(r<0.55){const n=1+(Math.random()*4|0); for(let j=0;j<n;j++) burst(t+j*rnd(0.008,0.03),rnd(0.004,0.014),"highpass",rnd(1800,6000),0.7,rnd(0.06,0.22),0.2)}
+      else if(r<0.9){burst(t,rnd(0.02,0.04),"bandpass",rnd(500,1300),1.4,rnd(0.25,0.45)); thump(t,rnd(85,140),0.12,rnd(0.18,0.3)); flare=Math.max(flare,0.45)}
+      else{const n=5+(Math.random()*5|0); for(let j=0;j<n;j++) burst(t+j*rnd(0.01,0.03),rnd(0.005,0.02),j%3?"highpass":"bandpass",rnd(900,5000),1,rnd(0.12,0.35));
+        thump(t,rnd(70,110),0.18,0.32); flare=Math.max(flare,0.85)}
+    }
+    crackleTimer=setTimeout(crackle,40+Math.pow(Math.random(),2)*650);
+  };
+  const settle=()=>{
+    if(soundOn && actx.state==="running"){const t=actx.currentTime+0.01; thump(t,52,0.7,0.5); burst(t,0.35,"lowpass",320,0.7,0.5,0.6);
+      for(let j=0;j<6;j++) burst(t+0.05+j*rnd(0.02,0.06),rnd(0.005,0.015),"highpass",rnd(2000,5000),0.7,0.15); flare=1}
+    setTimeout(settle,rnd(6000,15000));
+  };
+  crackle(); setTimeout(settle,rnd(3000,7000));
+}
+function tone(freq,dur,vol,type="sine",when=0){
+  if(!actx||!soundOn) return; const t=actx.currentTime+when;
+  const o=actx.createOscillator(), g=actx.createGain(); o.type=type; o.frequency.value=freq;
+  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+0.004); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g).connect(actx.destination); o.start(t); o.stop(t+dur+0.02);
+}
+const clickSound=()=>{tone(2100,0.05,0.12,"triangle");tone(1500,0.06,0.10,"triangle",0.07)};
+const rowSound=()=>{[523.25,659.25,783.99].forEach((f,i)=>tone(f,0.9,0.08,"sine",i*0.09))};
+const missSound=()=>tone(180,0.18,0.08,"triangle");
+$("soundBtn").addEventListener("click",()=>{
+  soundOn=!soundOn; $("soundBtn").setAttribute("aria-pressed",String(soundOn)); $("soundBtn").setAttribute("aria-label",soundOn?"Sound on":"Sound off");
+  $("soundWave").style.opacity=soundOn?1:0; initAudio(); if(actx&&actx.state!=="running")actx.resume();
+  if(fireBus) fireBus.gain.value=soundOn?1:0;
+});
+
+/* ---------------- three.js scene ---------------- */
+let renderer;
+try{
+  renderer=new THREE.WebGLRenderer({canvas:$("scene"),antialias:true});
+}catch(e){
+  document.body.insertAdjacentHTML("beforeend",'<div class="err"><p>Weave Online needs WebGL, which this browser has turned off. Try another browser or device.</p></div>');
+  return;
+}
+renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.08;
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0a0705); scene.fog=new THREE.Fog(0x0a0705,5,13);
+const camera=new THREE.PerspectiveCamera(58,1,0.01,40);
+const CAM_BASE=new THREE.Vector3(-0.1,1.18,2.15), LOOK=new THREE.Vector3(0.55,0.55,-2.4);
+camera.position.copy(CAM_BASE); camera.lookAt(LOOK); scene.add(camera);
+
+function canvasTex(w,h,draw,repeat){
+  const c=document.createElement("canvas"); c.width=w; c.height=h; draw(c.getContext("2d"),w,h);
+  const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; t.anisotropy=4;
+  if(repeat){t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(repeat[0],repeat[1])}
+  return t;
+}
+const rnd=(a,b)=>a+Math.random()*(b-a);
+
+/* textures */
+const woodTex=canvasTex(512,64,(g,w,h)=>{
+  g.fillStyle="#6b4128";g.fillRect(0,0,w,h);
+  for(let i=0;i<70;i++){g.strokeStyle=`rgba(${rnd(30,60)|0},${rnd(15,30)|0},10,${rnd(.15,.4)})`;g.lineWidth=rnd(1,3);
+    const y=rnd(0,h);g.beginPath();g.moveTo(0,y);for(let x=0;x<=w;x+=32)g.lineTo(x,y+Math.sin(x*.02+i)*rnd(1,4));g.stroke();}
+  for(let i=0;i<5;i++){g.fillStyle="rgba(40,20,8,.5)";g.beginPath();g.ellipse(rnd(0,w),rnd(10,h-10),rnd(5,10),rnd(2,4),0,0,7);g.fill()}
+},[3,1]);
+const plankTex=canvasTex(512,512,(g,w,h)=>{
+  const rows=8;for(let r=0;r<rows;r++){let x=-rnd(0,200);while(x<w){const len=rnd(160,320);
+    const l=rnd(.8,1.1);g.fillStyle=`rgb(${92*l|0},${60*l|0},${38*l|0})`;g.fillRect(x,r*h/rows,len,h/rows);
+    g.strokeStyle="rgba(20,10,4,.8)";g.lineWidth=3;g.strokeRect(x,r*h/rows,len,h/rows);
+    for(let k=0;k<6;k++){g.strokeStyle="rgba(40,22,10,.35)";g.lineWidth=1;const yy=r*h/rows+rnd(4,h/rows-4);g.beginPath();g.moveTo(x,yy);g.lineTo(x+len,yy+rnd(-3,3));g.stroke()}
+    x+=len;}}
+},[3,3]);
+const stoneTex=canvasTex(512,512,(g,w,h)=>{
+  g.fillStyle="#2b2420";g.fillRect(0,0,w,h);
+  for(let y=0;y<h;y+=46){let x=-rnd(0,40);while(x<w){const sw=rnd(50,95);const l=rnd(.7,1.15);
+    g.fillStyle=`rgb(${118*l|0},${104*l|0},${92*l|0})`;g.beginPath();
+    if(g.roundRect)g.roundRect(x+3,y+3,sw-6,40,12);else g.rect(x+3,y+3,sw-6,40);g.fill();
+    g.fillStyle="rgba(255,255,255,.06)";g.fillRect(x+8,y+7,sw-20,5);x+=sw;}}
+},[1,1]);
+const rugTex=canvasTex(512,512,(g,w,h)=>{
+  const cols=["#7a2e24","#c98a3a","#3c4a3a","#e2cfae","#7a2e24","#5a2a40","#c98a3a","#7a2e24"];
+  for(let i=0;i<cols.length;i++){g.fillStyle=cols[i];g.beginPath();g.arc(w/2,h/2,w/2-i*30,0,7);g.fill()}
+  for(let i=0;i<1600;i++){g.fillStyle=`rgba(0,0,0,${rnd(0,.15)})`;g.fillRect(rnd(0,w),rnd(0,h),2,2)}
+});
+const skyTex=canvasTex(256,256,(g,w,h)=>{
+  const gr=g.createLinearGradient(0,0,0,h);gr.addColorStop(0,"#081227");gr.addColorStop(1,"#2a4066");g.fillStyle=gr;g.fillRect(0,0,w,h);
+  for(let i=0;i<60;i++){g.fillStyle=`rgba(255,255,240,${rnd(.3,.9)})`;g.fillRect(rnd(0,w),rnd(0,h*.6),1.5,1.5)}
+  g.fillStyle="#f4ecd0";g.beginPath();g.arc(190,55,20,0,7);g.fill();g.fillStyle="#13213e";g.beginPath();g.arc(200,49,18,0,7);g.fill();
+  g.fillStyle="#dfe6f0";g.fillRect(0,h*.84,w,h*.16);
+  g.fillStyle="#0b1424";for(let i=0;i<9;i++){const x=rnd(-10,w),b=h*.86,th=rnd(50,100),tw=th*.42;g.beginPath();g.moveTo(x,b-th);g.lineTo(x-tw,b);g.lineTo(x+tw,b);g.fill();
+    g.fillStyle="#e8eef6";g.beginPath();g.moveTo(x,b-th);g.lineTo(x-tw*.25,b-th*.7);g.lineTo(x+tw*.25,b-th*.7);g.fill();g.fillStyle="#0b1424";}
+});
+const glowTex=canvasTex(64,64,(g,w,h)=>{const gr=g.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,"rgba(255,255,255,1)");gr.addColorStop(.35,"rgba(255,255,255,.55)");gr.addColorStop(1,"rgba(255,255,255,0)");g.fillStyle=gr;g.fillRect(0,0,w,h)});
+
+const M=(o)=>new THREE.MeshStandardMaterial(Object.assign({roughness:.85,metalness:0},o));
+const woodMat=M({map:woodTex,color:0xc8a27f});
+/* room */
+const add=(geo,mat,x,y,z,o={},parent=scene)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);if(o.rx)m.rotation.x=o.rx;if(o.ry)m.rotation.y=o.ry;if(o.rz)m.rotation.z=o.rz;
+  m.receiveShadow=o.noRecv?false:true; if(o.cast)m.castShadow=true; parent.add(m);return m};
+add(new THREE.PlaneGeometry(7,7),M({map:plankTex,color:0xd8b48e}),0,0,0,{rx:-Math.PI/2});
+add(new THREE.PlaneGeometry(7,7),M({color:0x2a1a12}),0,3.1,0,{rx:Math.PI/2});
+const logGeo=new THREE.CylinderGeometry(0.14,0.14,7,14);
+for(let y=0.14;y<3.1;y+=0.27){
+  add(logGeo,woodMat,0,y,-3.05,{rz:Math.PI/2});
+  add(logGeo,woodMat,-3.05,y,0,{rx:Math.PI/2});
+  add(logGeo,woodMat,3.05,y,0,{rx:Math.PI/2});
+}
+for(let x=-2.4;x<=2.4;x+=1.2) add(new THREE.BoxGeometry(0.18,0.22,7),woodMat,x,2.95,0);
+
+/* corner fireplace, angled toward the chair from the front right */
+const hearthOuter=new THREE.Group(); hearthOuter.position.set(2.05,0,-1.45); hearthOuter.rotation.y=-0.68; scene.add(hearthOuter);
+const hearth=new THREE.Group(); hearth.position.set(0,0,2.7); hearthOuter.add(hearth);
+const addH=(geo,mat,x,y,z,o={})=>add(geo,mat,x,y,z,o,hearth);
+const stoneMat=M({map:stoneTex,color:0xffffff});
+const stoneSide=new THREE.BoxGeometry(0.5,1.0,0.6);
+addH(stoneSide,stoneMat,-0.75,0.5,-2.75,{cast:true}); addH(stoneSide,stoneMat,0.75,0.5,-2.75,{cast:true});
+addH(new THREE.BoxGeometry(2.0,1.9,0.6),stoneMat,0,2.05,-2.78,{cast:true});
+addH(new THREE.BoxGeometry(1.4,3.2,0.8),stoneMat,0,1.6,-3.35);
+addH(new THREE.BoxGeometry(1.0,1.0,0.1),M({color:0x120a07}),0,0.5,-3.0);
+addH(new THREE.BoxGeometry(2.4,0.08,1.0),stoneMat,0,0.04,-2.4);
+addH(new THREE.BoxGeometry(2.3,0.12,0.42),M({map:woodTex,color:0x9c6b48}),0,1.12,-2.42,{cast:true});
+const logM=M({color:0x3a2416});
+addH(new THREE.CylinderGeometry(0.07,0.07,0.75,8),logM,0,0.16,-2.72,{rz:Math.PI/2,ry:.2});
+addH(new THREE.CylinderGeometry(0.06,0.06,0.7,8),logM,0.05,0.27,-2.65,{rz:Math.PI/2,ry:-.35});
+addH(new THREE.CylinderGeometry(0.05,0.05,0.5,8),logM,-0.08,0.33,-2.75,{rz:Math.PI/2.4,ry:.9});
+const coals=addH(new THREE.CircleGeometry(0.38,20),new THREE.MeshBasicMaterial({color:0xff5a1a}),0,0.09,-2.7,{rx:-Math.PI/2,noRecv:true});
+// warm pool of light spilling across the floor
+const pool=addH(new THREE.PlaneGeometry(3.2,2.6),new THREE.MeshBasicMaterial({map:glowTex,color:0xff7a2a,transparent:true,opacity:.25,blending:THREE.AdditiveBlending,depthWrite:false}),0,0.02,-1.6,{rx:-Math.PI/2,noRecv:true});
+// firewood stack and poker beside the hearth
+for(let i=0;i<5;i++) addH(new THREE.CylinderGeometry(0.06,0.06,0.45,8),M({map:woodTex,color:0x8a5a3a}),-1.32+(i%3)*0.13+(i>2?0.065:0),0.07+(i>2?0.11:0),-2.35,{rx:Math.PI/2,cast:true});
+addH(new THREE.CylinderGeometry(0.01,0.01,0.8,6),M({color:0x2a2a2a,metalness:.6,roughness:.4}),1.12,0.42,-2.3,{rz:0.18,cast:true});
+
+/* mantel decor: pumpkin, candles, framed sampler */
+const pumpkin=addH(new THREE.SphereGeometry(0.11,16,10),M({color:0xd8701f,roughness:.6}),-0.72,1.27,-2.42,{cast:true}); pumpkin.scale.set(1.25,.8,1.25);
+addH(new THREE.CylinderGeometry(0.012,0.016,0.06,6),M({color:0x4a5a2a}),-0.72,1.36,-2.42);
+const candleFlames=[];
+[[0.55,0.14],[0.68,0.1],[0.8,0.18]].forEach(([x,hh])=>{
+  addH(new THREE.CylinderGeometry(0.025,0.025,hh,10),M({color:0xf1e4c8}),x,1.18+hh/2,-2.4,{cast:true});
+  const f=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xffc070,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));
+  f.position.set(x,1.18+hh+0.03,-2.4); f.scale.set(.05,.08,1); hearth.add(f); candleFlames.push(f);
+});
+addH(new THREE.BoxGeometry(0.42,0.32,0.03),M({map:woodTex,color:0x8a5a38}),0,1.52,-2.47);
+addH(new THREE.PlaneGeometry(0.34,0.24),M({map:canvasTex(128,96,(g,w,h)=>{g.fillStyle="#efe3c8";g.fillRect(0,0,w,h);g.fillStyle="#9b3b32";
+  g.font="bold 22px Georgia,serif";g.textAlign="center";g.fillText("HOME",w/2,44);g.fillStyle="#5f7a45";for(let i=0;i<9;i++){g.fillRect(14+i*12,64,6,6)}})}),0,1.52,-2.45);
+
+/* window with snow, back wall left of the bookshelf */
+const wx=-0.85, wy=1.6, wz=-2.88, ww=1.0, wh=1.05;
+add(new THREE.PlaneGeometry(ww,wh),new THREE.MeshBasicMaterial({map:skyTex}),wx,wy,wz-0.02,{noRecv:true});
+const frameM=M({color:0x5a3a24,map:woodTex});
+add(new THREE.BoxGeometry(ww+0.16,0.08,0.1),frameM,wx,wy+wh/2+0.04,wz);
+add(new THREE.BoxGeometry(ww+0.3,0.07,0.22),frameM,wx,wy-wh/2-0.03,wz+0.05);
+add(new THREE.BoxGeometry(0.08,wh,0.1),frameM,wx-ww/2-0.04,wy,wz); add(new THREE.BoxGeometry(0.08,wh,0.1),frameM,wx+ww/2+0.04,wy,wz);
+add(new THREE.BoxGeometry(0.035,wh,0.06),frameM,wx,wy,wz+0.02); add(new THREE.BoxGeometry(ww,0.035,0.06),frameM,wx,wy,wz+0.02);
+const SNOW=90, snowPos=new Float32Array(SNOW*3), snowVel=[];
+for(let i=0;i<SNOW;i++){snowPos[i*3]=wx+rnd(-ww/2,ww/2);snowPos[i*3+1]=wy+rnd(-wh/2,wh/2);snowPos[i*3+2]=wz-0.01;snowVel.push(rnd(.08,.2))}
+const snowGeo=new THREE.BufferGeometry(); snowGeo.setAttribute("position",new THREE.BufferAttribute(snowPos,3));
+scene.add(new THREE.Points(snowGeo,new THREE.PointsMaterial({color:0xffffff,size:0.016,transparent:true,opacity:.85,map:glowTex,depthWrite:false,fog:false})));
+
+/* bookshelf */
+const shelfM=M({map:woodTex,color:0x7a5034});
+const BX=0.45, BZ=-2.75;
+add(new THREE.BoxGeometry(0.9,1.7,0.04),shelfM,BX,0.85,BZ-0.15);
+add(new THREE.BoxGeometry(0.05,1.7,0.32),shelfM,BX-0.43,0.85,BZ,{cast:true}); add(new THREE.BoxGeometry(0.05,1.7,0.32),shelfM,BX+0.43,0.85,BZ,{cast:true});
+const bookCols=[0x7a2e24,0x3c4a3a,0xc98a3a,0x2f4a5c,0x5a2a40,0xe2cfae,0x6b4a2a];
+[0.05,0.5,0.95,1.4].forEach((sy,si)=>{
+  add(new THREE.BoxGeometry(0.86,0.035,0.32),shelfM,BX,sy,BZ,{cast:true});
+  if(si===3) return;
+  let x=BX-0.38; while(x<BX+0.3){const bw=rnd(0.03,0.06),bh=rnd(0.24,0.36);
+    add(new THREE.BoxGeometry(bw,bh,0.22),M({color:bookCols[(Math.random()*bookCols.length)|0],roughness:.9}),x+bw/2,sy+0.02+bh/2,BZ+0.02,{cast:true,rz:Math.random()<.1?0.15:0});x+=bw+0.004}
+});
+const jar=add(new THREE.CylinderGeometry(0.06,0.06,0.16,14),M({color:0x9fbf7a,roughness:.3,transparent:true,opacity:.7}),BX-0.2,1.5,BZ);
+
+/* rug, armchair with plaid throw, side table with tea, sleeping cat */
+add(new THREE.CircleGeometry(1.25,40),M({map:rugTex}),0.75,0.012,-0.55,{rx:-Math.PI/2}).scale.set(1.3,1,1);
+const fabric=M({color:0x6e3b3b,roughness:1});
+add(new THREE.BoxGeometry(0.28,0.22,1.0),fabric,-0.62,0.72,1.75,{cast:true}); add(new THREE.BoxGeometry(0.28,0.22,1.0),fabric,0.62,0.72,1.75,{cast:true});
+add(new THREE.CylinderGeometry(0.14,0.14,1.0,14),fabric,-0.62,0.83,1.75,{rx:Math.PI/2,cast:true});
+add(new THREE.CylinderGeometry(0.14,0.14,1.0,14),fabric,0.62,0.83,1.75,{rx:Math.PI/2,cast:true});
+const plaidTex=canvasTex(128,128,(g,w,h)=>{g.fillStyle="#2f4a3a";g.fillRect(0,0,w,h);
+  for(let i=0;i<w;i+=32){g.fillStyle="rgba(180,60,50,.75)";g.fillRect(i+10,0,10,h);g.fillRect(0,i+10,w,10);g.fillStyle="rgba(230,200,140,.5)";g.fillRect(i+26,0,2,h);g.fillRect(0,i+26,w,2)}},[2,2]);
+add(new THREE.CylinderGeometry(0.155,0.155,0.62,16,1,false,-0.3,Math.PI+0.6),M({map:plaidTex,roughness:1}),-0.62,0.83,1.5,{rx:Math.PI/2,cast:true});
+add(new THREE.BoxGeometry(0.02,0.36,0.6),M({map:plaidTex,roughness:1}),-0.78,0.62,1.5,{rz:0.08,cast:true});
+const MUG={x:-1.1,y:0.695,z:0.75};
+add(new THREE.CylinderGeometry(0.28,0.28,0.04,20),woodMat,-1.15,0.62,0.75,{cast:true}); add(new THREE.CylinderGeometry(0.04,0.05,0.6,8),woodMat,-1.15,0.3,0.75,{cast:true});
+add(new THREE.CylinderGeometry(0.05,0.045,0.11,16),M({color:0x3f6f78,roughness:.4}),MUG.x,MUG.y,MUG.z,{cast:true});
+add(new THREE.TorusGeometry(0.03,0.008,6,12,Math.PI),M({color:0x3f6f78,roughness:.4}),MUG.x+0.05,MUG.y,MUG.z,{rz:-Math.PI/2,cast:true});
+const steam=[]; for(let i=0;i<6;i++){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xffffff,transparent:true,opacity:0,depthWrite:false}));s.userData.t=i/6;scene.add(s);steam.push(s)}
+
+const cat=new THREE.Group(); cat.position.set(1.05,0,-0.55); cat.rotation.y=-0.9; scene.add(cat);
+const catM=M({color:0xc4763a,roughness:1}), catW=M({color:0xf0dcc0,roughness:1});
+const catBody=add(new THREE.SphereGeometry(1,18,12),catM,0,0.11,0,{cast:true},cat); catBody.scale.set(0.24,0.11,0.17);
+const catHead=add(new THREE.SphereGeometry(0.075,14,10),catM,0.2,0.08,0.08,{cast:true},cat);
+add(new THREE.ConeGeometry(0.025,0.05,4),catM,0.22,0.15,0.05,{rz:-0.3,cast:true},cat); add(new THREE.ConeGeometry(0.025,0.05,4),catM,0.18,0.15,0.12,{rz:0.1,cast:true},cat);
+add(new THREE.SphereGeometry(0.035,10,8),catW,0.25,0.06,0.11,{},cat);
+add(new THREE.TorusGeometry(0.2,0.025,8,20,Math.PI*1.1),catM,0,0.04,0,{rx:-Math.PI/2,rz:0.6,cast:true},cat);
+
+/* lights */
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+scene.add(new THREE.HemisphereLight(0x3a4560,0x24140a,0.32));
+const fireLight=new THREE.PointLight(0xff8434,2.4,11,1.3); fireLight.position.set(0,0.55,-2.3); hearth.add(fireLight);
+fireLight.castShadow=true; fireLight.shadow.mapSize.set(512,512); fireLight.shadow.camera.near=0.15; fireLight.shadow.camera.far=9; fireLight.shadow.bias=-0.004; fireLight.shadow.radius=3;
+const fireFill=new THREE.PointLight(0xff6a20,0.6,4,1.6); fireFill.position.set(0,0.25,-2.0); hearth.add(fireFill);
+const moon=new THREE.PointLight(0x7f9fd0,0.45,4,2); moon.position.set(wx,wy,wz+0.4); scene.add(moon);
+const lapLight=new THREE.PointLight(0xffb37a,0.45,2.5,2); lapLight.position.set(0.3,0.3,0.1); camera.add(lapLight);
+
+/* fire sprites + embers */
+const FLAMES=80, flames=[];
+for(let i=0;i<FLAMES;i++){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xffaa44,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}));
+  s.userData={life:Math.random(),spd:0,x:0,z:0,max:1}; hearth.add(s); flames.push(s)}
+function respawnFlame(s,warm){const u=s.userData;u.life=0;u.max=rnd(.5,1.0);u.x=rnd(-.32,.32)*(0.8+warm*.3);u.z=-2.68+rnd(-.08,.08);u.spd=rnd(.35,.7)*(1+warm*.5)}
+const EMB=50, embPos=new Float32Array(EMB*3), emb=[];
+for(let i=0;i<EMB;i++){emb.push({life:Math.random()*3,vx:0,vy:0});embPos[i*3+1]=-5}
+const embGeo=new THREE.BufferGeometry(); embGeo.setAttribute("position",new THREE.BufferAttribute(embPos,3));
+const embPts=new THREE.Points(embGeo,new THREE.PointsMaterial({color:0xffb050,size:0.025,map:glowTex,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+embPts.frustumCulled=false; hearth.add(embPts);
+
+/* ---------------- first-person hands: needles, live loops, draping fabric ---------------- */
+const hands=new THREE.Group(); camera.add(hands);
+const needleMat=M({color:0xe2bb84,roughness:.45});
+const NLEN=0.42, NH=NLEN/2;
+function makeNeedle(){
+  const g=new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.0075,0.0075,NLEN,10),needleMat));
+  const tip=new THREE.Mesh(new THREE.ConeGeometry(0.0075,0.035,10),needleMat); tip.position.y=NH+0.0175; g.add(tip);
+  const knob=new THREE.Mesh(new THREE.SphereGeometry(0.018,12,10),M({color:0x9b3b32,roughness:.5})); knob.position.y=-NH-0.006; g.add(knob);
+  return g;
+}
+const needleL=makeNeedle(), needleR=makeNeedle(); hands.add(needleL,needleR);
+const V3=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
+const POSE={L:{base:V3(-0.31,-0.04,0.06),tip:V3(-0.012,0.03,-0.035)}, R:{base:V3(0.31,-0.045,0.07),tip:V3(0.012,0.022,-0.02)}};
+const UPV=V3(0,1,0), ZAX=V3(0,0,1), _d=V3(), _bx=V3(), _bz=V3(), _m4=new THREE.Matrix4();
+// stable frame: needle along local y, local z kept facing you so the hands never roll around the needle
+function poseNeedle(n,base,tip){_d.subVectors(tip,base).normalize(); _bx.crossVectors(_d,ZAX).normalize(); _bz.crossVectors(_bx,_d);
+  _m4.makeBasis(_bx,_d,_bz); n.quaternion.setFromRotationMatrix(_m4); n.position.copy(tip).addScaledVector(_d,-NH); n.updateMatrix();}
+/* hands gripping the needles, in knitted jumper sleeves */
+const skinMat=M({color:0xd59a78,roughness:.65});
+const sleeveTex=canvasTex(128,128,(g,w,h)=>{g.fillStyle="#cdb48e";g.fillRect(0,0,w,h);
+  for(let x=0;x<w;x+=16)for(let y=0;y<h;y+=12){g.strokeStyle="rgba(90,62,36,.55)";g.lineWidth=3;g.beginPath();g.moveTo(x+2,y+1);g.lineTo(x+8,y+11);g.lineTo(x+14,y+1);g.stroke();
+    g.strokeStyle="rgba(255,240,215,.35)";g.lineWidth=1.5;g.beginPath();g.moveTo(x+3,y+1);g.lineTo(x+8,y+9);g.stroke()}},[2,3]);
+const sleeveMat=M({map:sleeveTex,color:0xffffff,roughness:1});
+const cuffTex=canvasTex(64,32,(g,w,h)=>{g.fillStyle="#bfa47c";g.fillRect(0,0,w,h);for(let x=0;x<w;x+=8){g.fillStyle="rgba(80,55,30,.5)";g.fillRect(x,0,3,h)}},[6,1]);
+const cuffMat=M({map:cuffTex,color:0xffffff,roughness:1});
+function limb(g,a,b,r,mat,r2=r,cap=true){
+  const d=V3().subVectors(b,a), len=d.length();
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(r2,r,len,12),mat);
+  m.position.copy(a).addScaledVector(d,.5); m.quaternion.setFromUnitVectors(UPV,d.normalize()); g.add(m);
+  if(cap){const j=new THREE.Mesh(new THREE.SphereGeometry(r2,10,8),mat); j.position.copy(b); g.add(j)}
+  return m;
+}
+function makeHand(side){
+  // needle-local frame: a = along needle (toward tip), u = up, t = toward you
+  const g=new THREE.Group(), P=(a,u,t)=>V3(side*u,a,t), a0=-0.135;
+  const palm=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),skinMat);
+  palm.position.copy(P(a0-0.008,-0.012,0.032)); palm.scale.set(0.024,0.046,0.04); g.add(palm);
+  // index finger lies along the needle, guiding the yarn
+  limb(g,P(a0+0.03,0.004,0.016),P(a0+0.062,0.013,0.006),0.0078,skinMat,0.0072);
+  limb(g,P(a0+0.062,0.013,0.006),P(a0+0.088,0.012,0.0),0.0072,skinMat,0.0064);
+  // middle, ring and little fingers curl over and behind the needle
+  for(let k=1;k<4;k++){
+    const ak=a0+0.03-k*0.019, r=0.0078-k*0.0006;
+    const kn=P(ak,0.002,0.02); const j1=P(ak+0.004,0.016,0.002); const tip=P(ak+0.006,0.004,-0.014);
+    const kj=new THREE.Mesh(new THREE.SphereGeometry(r*1.1,10,8),skinMat); kj.position.copy(kn); g.add(kj);
+    limb(g,kn,j1,r,skinMat,r*0.95); limb(g,j1,tip,r*0.95,skinMat,r*0.85);
+  }
+  // thumb presses from below
+  limb(g,P(a0+0.004,-0.026,0.03),P(a0+0.03,-0.016,0.014),0.0095,skinMat,0.0088);
+  limb(g,P(a0+0.03,-0.016,0.014),P(a0+0.048,-0.009,0.004),0.0088,skinMat,0.0078);
+  // wrist, forearm and sleeve heading back toward you
+  limb(g,P(a0-0.035,-0.014,0.05),P(a0-0.12,-0.09,0.22),0.019,skinMat,0.022,false);
+  const c0=P(a0-0.07,-0.04,0.11), c1=P(a0-0.095,-0.062,0.155);
+  limb(g,c0,c1,0.031,cuffMat,0.031,false);
+  limb(g,c1,P(a0-0.2,-0.18,0.42),0.033,sleeveMat,0.042,false);
+  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});
+  return g;
+}
+needleL.add(makeHand(-1)); needleR.add(makeHand(1));
+needleL.traverse(o=>{if(o.isMesh)o.castShadow=true}); needleR.traverse(o=>{if(o.isMesh)o.castShadow=true});
+const RANK0=0.03, RANKSTEP=0.021;
+const onNeedle=(n,rank,out)=>out.set(0,NH-RANK0-rank*RANKSTEP,0).applyMatrix4(n.matrix);
+const needleLocal=(n,x,y,z,out)=>out.set(x,y,z).applyMatrix4(n.matrix);
+const ease=t=>t<=0?0:t>=1?1:t*t*(3-2*t);
+
+/* gesture-driven stitch state: p runs 0→1 across insert, wrap, pull through, slip off */
+const gest={p:0,mode:"idle",type:"K",dragF:0,on:true,pending:null};
+const INSERT={K:V3(-0.014,0.004,-0.026),P:V3(-0.014,0.004,0.026),C:V3(-0.012,0.016,-0.026),O:V3(0.004,0.02,0.014)};
+
+/* stitch loops sitting on the needles */
+const QX=new THREE.Quaternion().setFromAxisAngle(V3(1,0,0),Math.PI/2);
+const loopGeo=new THREE.TorusGeometry(0.0108,0.0034,6,16);
+const cols=Array.from({length:PER_ROW},()=>{const m=new THREE.Mesh(loopGeo,M({color:0xffffff,roughness:1}));hands.add(m);
+  return {sv:0,rL:0,rR:0,pos:V3(),mesh:m}});
+const newLoop=new THREE.Mesh(loopGeo,M({color:0xffffff,roughness:1})); hands.add(newLoop);
+function colTarget(c){const n=state.cur.length,i=PER_ROW-1-c,w=i<n;return {sv:w?1:0,rL:Math.max(0,(PER_ROW-1-n)-c),rR:Math.max(0,n-1-i),worked:w,i}}
+function snapCols(){cols.forEach((a,c)=>{const t=colTarget(c);a.sv=t.sv;a.rL=t.rL;a.rR=t.rR})}
+function loopColor(c){const t=colTarget(c);if(t.worked)return state.cur[t.i].c;const pr=state.rows[state.rows.length-1];return pr&&pr[t.i]?pr[t.i].c:YARNS[state.color].hex}
+
+/* scarf texture */
+const CELL=32, scarfCanvas=document.createElement("canvas"); scarfCanvas.width=PER_ROW*CELL; scarfCanvas.height=MAX_ROWS*CELL;
+const sc=scarfCanvas.getContext("2d");
+const scarfTex=new THREE.CanvasTexture(scarfCanvas); scarfTex.encoding=THREE.sRGBEncoding; scarfTex.anisotropy=4;
+function shade(hex,amt){const n=parseInt(hex.slice(1),16);let r=n>>16,g=n>>8&255,b=n&255;
+  const t=amt<0?0:255,p=Math.abs(amt);r=Math.round(r+(t-r)*p);g=Math.round(g+(t-g)*p);b=Math.round(b+(t-b)*p);return `rgb(${r},${g},${b})`}
+function strokeYarn(c,pts,w,ctx=sc){
+  const draw=(col,lw,off)=>{ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0]+off,p[1]+off):ctx.moveTo(p[0]+off,p[1]+off));ctx.stroke()};
+  draw(shade(c,-.55),w+3,0.5); draw(c,w,0); draw(shade(c,.35),Math.max(1.5,w*.25),-1.5);
+}
+function drawStitch(st,col,row,ctx=sc){
+  const x=col*CELL, y=row*CELL, c=st.c;
+  ctx.lineCap="round"; ctx.lineJoin="round";
+  ctx.fillStyle=shade(c,-.45); ctx.fillRect(x,y,CELL,CELL);
+  if(st.t==="K"){ strokeYarn(c,[[x+6,y+5],[x+15,y+27]],8,ctx); strokeYarn(c,[[x+26,y+5],[x+17,y+27]],8,ctx); }
+  else if(st.t==="P"){ strokeYarn(c,[[x+4,y+12],[x+16,y+8],[x+28,y+12]],7,ctx); strokeYarn(c,[[x+4,y+24],[x+16,y+20],[x+28,y+24]],7,ctx); }
+  else if(st.t==="O"){
+    ctx.save(); ctx.globalCompositeOperation="destination-out"; ctx.beginPath(); ctx.arc(x+16,y+16,7,0,7); ctx.fill(); ctx.restore();
+    ctx.strokeStyle=shade(c,-.55); ctx.lineWidth=7; ctx.beginPath(); ctx.arc(x+16,y+16,10,0,7); ctx.stroke();
+    ctx.strokeStyle=c; ctx.lineWidth=5; ctx.beginPath(); ctx.arc(x+16,y+16,10,0,7); ctx.stroke();
+    ctx.strokeStyle=shade(c,.35); ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(x+16,y+16,10,3.6,5.4); ctx.stroke();
+  }
+  else if(st.t==="C"){ strokeYarn(c,[[x+5,y+27],[x+27,y+5]],8,ctx); strokeYarn(c,[[x+5,y+5],[x+16,y+15],[x+27,y+27]],8,ctx); }
+}
+function redrawScarf(){
+  sc.clearRect(0,0,scarfCanvas.width,scarfCanvas.height);
+  const list=[state.cur, ...[...state.rows].reverse()].slice(0,MAX_ROWS);
+  list.forEach((row,ri)=>row.forEach((st,i)=>drawStitch(st,PER_ROW-1-i,ri)));
+  scarfTex.needsUpdate=true;
+}
+
+/* fabric: a cloth grid whose top edge hangs from each live loop and settles under gravity */
+const VC=PER_ROW*2, ROWH=0.024, FABW=0.29;
+const fabGeo=new THREE.PlaneGeometry(1,1,VC,MAX_ROWS);
+const fab=new THREE.Mesh(fabGeo,new THREE.MeshStandardMaterial({map:scarfTex,alphaTest:0.5,side:THREE.DoubleSide,roughness:1}));
+fab.frustumCulled=false; fab.receiveShadow=true; hands.add(fab);
+const fabPos=fabGeo.attributes.position, anc=Array.from({length:PER_ROW},()=>V3()), ancRow=new Array(PER_ROW).fill(0);
+const _va=V3();
+function updateFabric(t){
+  let my=0,mz=0; for(let c=0;c<PER_ROW;c++){my+=anc[c].y;mz+=anc[c].z} my/=PER_ROW; mz/=PER_ROW;
+  for(let v=0;v<=VC;v++){
+    let ar;
+    if(v%2){const c=(v-1)/2;_va.copy(anc[c]);ar=ancRow[c]}
+    else{const c1=v/2-1,c2=v/2;
+      if(c1<0){_va.copy(anc[c2]);ar=ancRow[c2]} else if(c2>=PER_ROW){_va.copy(anc[c1]);ar=ancRow[c1]}
+      else{_va.lerpVectors(anc[c1],anc[c2],.5);ar=Math.min(ancRow[c1],ancRow[c2])}}
+    const rx=(v/VC-0.5)*FABW;
+    for(let k=0;k<=MAX_ROWS;k++){
+      const idx=k*(VC+1)+v;
+      if(k<=ar){fabPos.setXYZ(idx,_va.x,_va.y,_va.z);continue}
+      const dk=k-ar, b=1-Math.exp(-dk/5);
+      fabPos.setXYZ(idx,
+        _va.x+(rx-_va.x)*b,
+        _va.y+(my-_va.y)*b-dk*ROWH,
+        _va.z+(mz+0.035-_va.z)*b+Math.sin(t*0.8+k*0.35)*0.0012*Math.min(1,dk/8));
+    }
+  }
+  fabPos.needsUpdate=true; fabGeo.computeVertexNormals();
+}
+
+/* yarn ball + working yarn that wraps the right needle */
+const ballTex=document.createElement("canvas"); ballTex.width=128; ballTex.height=64;
+const ballT=new THREE.CanvasTexture(ballTex); ballT.encoding=THREE.sRGBEncoding;
+const ball=new THREE.Mesh(new THREE.SphereGeometry(0.06,20,14),new THREE.MeshStandardMaterial({map:ballT,roughness:1}));
+ball.position.set(0.2,-0.2,0.06); ball.castShadow=true; ball.receiveShadow=true; hands.add(ball);
+const yarnMat=M({color:0xffffff,roughness:1});
+const yarnTube=new THREE.Mesh(new THREE.BufferGeometry(),yarnMat); yarnTube.frustumCulled=false; hands.add(yarnTube);
+function updateYarnBall(){
+  const c=YARNS[state.color].hex, g=ballTex.getContext("2d");
+  g.fillStyle=shade(c,-.25); g.fillRect(0,0,128,64);
+  for(let i=0;i<40;i++){g.strokeStyle=i%2?c:shade(c,.2);g.lineWidth=3;g.beginPath();const y=rnd(0,64);g.moveTo(0,y);g.bezierCurveTo(40,y+rnd(-20,20),80,y+rnd(-20,20),128,y+rnd(-8,8));g.stroke()}
+  ballT.needsUpdate=true; yarnMat.color.set(c); newLoop.material.color.set(c);
+}
+function updateYarn(p,t){
+  const pts=[V3(ball.position.x-0.012,ball.position.y+0.056,ball.position.z)];
+  const wrap=ease((p-0.3)/0.3), holding=p>0.3&&p<0.9;
+  const y0=NH-RANK0+0.006;
+  const entry=holding?needleLocal(needleR,0.014,y0-0.022,0.006,V3()):onNeedle(needleR,0,V3()).add(V3(0.004,-0.013,0.006));
+  const mid=V3().lerpVectors(pts[0],entry,0.5); mid.y-=0.03+Math.sin(t*1.3)*0.003; mid.z+=0.02;
+  pts.push(mid,entry);
+  if(holding){
+    const turns=Math.max(0.15,wrap)*Math.PI*2, steps=14;
+    for(let j=1;j<=steps;j++){const a=-Math.PI/2+turns*j/steps;
+      pts.push(needleLocal(needleR,Math.cos(a)*0.0125,y0-j*0.0006,Math.sin(a)*0.0125,V3()))}
+  }
+  const curve=new THREE.CatmullRomCurve3(pts);
+  const g=new THREE.TubeGeometry(curve,holding?60:24,0.0027,5,false);
+  yarnTube.geometry.dispose(); yarnTube.geometry=g;
+}
+
+/* per-frame choreography */
+const _tA=V3(),_tB=V3(),_tC=V3(),_tip=V3(),_base=V3(),_pl=V3(),_pr=V3(),_q=new THREE.Quaternion(),_qL=new THREE.Quaternion(),_qR=new THREE.Quaternion();
+function animateHands(dt,t,sway){
+  const p=gest.p, ty=gest.type;
+  const bob=Math.sin(t*1.1)*0.002*sway;
+  // left needle: dips as the old loop is slipped off
+  const dip=ease((p-0.55)/0.3)*(1-ease((p-0.92)/0.08));
+  _tA.copy(POSE.L.tip); _tA.y+=bob-0.007*dip; _tA.x-=0.004*dip;
+  poseNeedle(needleL,POSE.L.base,_tA);
+  // right needle: insert → hold while wrapping → pull new loop through → return
+  onNeedle(needleL,0,_tB).add(INSERT[ty]||INSERT.K);
+  _tC.copy(POSE.R.tip).add(_va.set(-0.01,0.014,0.016));
+  if(p<0.3) _tip.lerpVectors(POSE.R.tip,_tB,ease(p/0.3));
+  else if(p<0.6) _tip.copy(_tB).add(_va.set(0,Math.sin((p-0.3)/0.3*Math.PI*2)*0.0018,0));
+  else if(p<0.85) _tip.lerpVectors(_tB,_tC,ease((p-0.6)/0.25));
+  else _tip.lerpVectors(_tC,POSE.R.tip,ease((p-0.85)/0.15));
+  _tip.y+=bob*0.7;
+  _base.copy(POSE.R.base).addScaledVector(_va.set(-0.026,0.012,0.012),Math.sin(Math.min(1,p)*Math.PI));
+  poseNeedle(needleR,_base,_tip);
+
+  // loops
+  const n=state.cur.length, active=PER_ROW-1-n, tf=ease((p-0.85)/0.15);
+  const swapRate=Math.min(1,dt*4), rate=Math.min(1,dt*10);
+  _qL.copy(needleL.quaternion).multiply(QX); _qR.copy(needleR.quaternion).multiply(QX);
+  for(let c=0;c<PER_ROW;c++){
+    const a=cols[c], tg=colTarget(c);
+    const r=Math.abs(tg.sv-a.sv)>0.5&&n===0?swapRate:rate;
+    a.sv+=(tg.sv-a.sv)*r; a.rL+=(tg.rL-a.rL)*rate; a.rR+=(tg.rR-a.rR)*rate;
+    if(c===active&&p>0){a.sv=Math.max(a.sv,tf); a.rR=Math.min(a.rR,0)}
+    const s=ease(a.sv);
+    onNeedle(needleL,a.rL,_pl); onNeedle(needleR,a.rR,_pr);
+    a.pos.lerpVectors(_pl,_pr,s); a.pos.y+=Math.sin(s*Math.PI)*0.012;
+    a.mesh.position.copy(a.pos); a.mesh.quaternion.copy(_qL).slerp(_qR,s);
+    a.mesh.material.color.set(loopColor(c));
+    anc[c].copy(a.pos); anc[c].y-=0.012;
+    ancRow[c]=tg.worked?0:1;
+  }
+  // the fresh loop formed by the wrap, riding the right needle tip
+  const nl=ease((p-0.42)/0.18)*(1-ease((p-0.9)/0.1));
+  newLoop.visible=nl>0.02;
+  if(newLoop.visible){onNeedle(needleR,0,newLoop.position);newLoop.quaternion.copy(_qR);newLoop.scale.setScalar(0.5+0.5*nl)}
+
+  updateFabric(t); updateYarn(p,t);
+}
+
+/* ---------------- knitting circle: other players by the fire ---------------- */
+const WEAVE_SERVER=String(window.WEAVE_SERVER||"").trim().replace(/\/+$/,"");
+const FIRE_C={x:2.05,z:-1.45}, SEAT_R=2.3, SEAT_ANG=[150,175,95,200];
+const seatSpot=i=>{const a=SEAT_ANG[i%SEAT_ANG.length]*Math.PI/180;return {x:FIRE_C.x+SEAT_R*Math.cos(a),z:FIRE_C.z+SEAT_R*Math.sin(a)}};
+const esc=v=>String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const EMOTES={wave:"👋",tea:"☕",yarn:"🧶",heart:"❤️"};
+function labelSprite(text){
+  const c=document.createElement("canvas"); c.width=256; c.height=64; const g=c.getContext("2d");
+  g.font='800 30px Sniglet, "Trebuchet MS", sans-serif'; const w=Math.min(240,g.measureText(text).width+32);
+  g.fillStyle="rgba(34,22,16,.78)"; g.beginPath(); if(g.roundRect)g.roundRect((256-w)/2,8,w,48,24);else g.rect((256-w)/2,8,w,48); g.fill();
+  g.fillStyle="#f6e9d7"; g.textAlign="center"; g.textBaseline="middle"; g.fillText(text,128,33,224);
+  const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding;
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthWrite:false})); s.scale.set(0.56,0.14,1); return s;
+}
+function emojiSprite(e){
+  const c=document.createElement("canvas"); c.width=c.height=128; const g=c.getContext("2d");
+  g.font="88px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif"; g.textAlign="center"; g.textBaseline="middle"; g.fillText(e,64,70);
+  const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding;
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthWrite:false})); s.scale.set(0.22,0.22,1); return s;
+}
+const limbW=(g,a,b,r,mat)=>limb(g,V3(...a),V3(...b),r,mat);
+function makeAvatar(p){
+  const g=new THREE.Group(); scene.add(g);
+  const chairM=M({color:[0x6e3b3b,0x3c4a3a,0x5a2a40,0x2f4a5c][p.seat%4],roughness:1});
+  const yarnM=M({color:p.color,roughness:1}), jumperM=M({color:shade(p.color,.4),roughness:1}), legM=M({color:0x3a3330,roughness:1});
+  const box=(w,h,d,m,x,y,z)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;g.add(o);return o};
+  box(0.74,0.2,0.66,chairM,0,0.42,0); box(0.74,0.8,0.16,chairM,0,0.84,-0.32);
+  box(0.14,0.26,0.66,chairM,-0.37,0.6,0); box(0.14,0.26,0.66,chairM,0.37,0.6,0);
+  const body=new THREE.Group(); g.add(body);
+  const torso=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.2,0.5,14),jumperM); torso.position.set(0,0.8,-0.08); body.add(torso);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.105,16,12),skinMat); head.position.set(0,1.18,-0.04); body.add(head);
+  const hat=new THREE.Mesh(new THREE.SphereGeometry(0.112,16,8,0,Math.PI*2,0,Math.PI/2),yarnM); hat.position.set(0,1.2,-0.05); body.add(hat);
+  const pom=new THREE.Mesh(new THREE.SphereGeometry(0.04,10,8),yarnM); pom.position.set(0,1.33,-0.05); body.add(pom);
+  for(const sx of [-1,1]){
+    limbW(body,[0.09*sx,0.55,0],[0.1*sx,0.55,0.36],0.065,legM); limbW(body,[0.1*sx,0.55,0.36],[0.1*sx,0.08,0.42],0.055,legM);
+    limbW(body,[0.19*sx,1.0,-0.06],[0.2*sx,0.78,0.12],0.05,jumperM); limbW(body,[0.2*sx,0.78,0.12],[0.07*sx,0.78,0.3],0.045,jumperM);
+  }
+  body.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});
+  // needles pivot in the hands
+  const nM=M({color:0xe2bb84,roughness:.45});
+  const mkN=(sx)=>{const piv=new THREE.Group(); piv.position.set(0.07*sx,0.8,0.31); const n=new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.005,0.3,6),nM);
+    n.rotation.z=-sx*1.25; n.position.set(-sx*0.12,0.045,0.02); piv.add(n); body.add(piv); return piv};
+  const nl=mkN(-1), nr=mkN(1);
+  // their knitting resting on their lap
+  const cv=document.createElement("canvas"); cv.width=PER_ROW*CELL; cv.height=16*CELL;
+  const tex=new THREE.CanvasTexture(cv); tex.encoding=THREE.sRGBEncoding;
+  const knit=new THREE.Mesh(new THREE.PlaneGeometry(0.2,0.267),new THREE.MeshStandardMaterial({map:tex,alphaTest:.5,side:THREE.DoubleSide,roughness:1}));
+  knit.position.set(0,0.72,0.37); knit.rotation.x=-0.55; knit.castShadow=true; body.add(knit);
+  const label=labelSprite(p.name); label.position.set(0,1.55,0); g.add(label);
+  return {g,body,head,nl,nr,cv,tex,yarnM,jumperM,label,data:p,rows:[],p:0,pt:0,ty:"K",tick:0,emotes:[],phase:Math.random()*6};
+}
+function drawRemoteKnit(pl){
+  const ctx=pl.cv.getContext("2d"); ctx.clearRect(0,0,pl.cv.width,pl.cv.height);
+  [pl.data.cur,...[...pl.rows].reverse()].slice(0,16).forEach((row,ri)=>row.forEach((st,i)=>drawStitch(st,PER_ROW-1-i,ri,ctx)));
+  pl.tex.needsUpdate=true;
+}
+
+/* the circle blanket on a quilt rack by the window: everyone's finished rows */
+const rack=new THREE.Group(); rack.position.set(-1.75,0,-2.05); rack.rotation.y=0.55; rack.visible=false; scene.add(rack);
+add(new THREE.BoxGeometry(0.06,1.5,0.06),woodMat,-0.66,0.75,0,{cast:true},rack); add(new THREE.BoxGeometry(0.06,1.5,0.06),woodMat,0.66,0.75,0,{cast:true},rack);
+add(new THREE.CylinderGeometry(0.03,0.03,1.4,10),woodMat,0,1.46,0,{rz:Math.PI/2,cast:true},rack);
+add(new THREE.BoxGeometry(0.06,0.04,0.5),woodMat,-0.66,0.02,0,{},rack); add(new THREE.BoxGeometry(0.06,0.04,0.5),woodMat,0.66,0.02,0,{},rack);
+const BL_PANELS=3, BL_ROWS=40, BL_CELL=16;
+const blCanvas=document.createElement("canvas"); blCanvas.width=BL_PANELS*PER_ROW*BL_CELL; blCanvas.height=BL_ROWS*BL_CELL;
+const blTex=new THREE.CanvasTexture(blCanvas); blTex.encoding=THREE.sRGBEncoding; blTex.anisotropy=4;
+const blanketMesh=add(new THREE.PlaneGeometry(1.24,1.38,1,1),new THREE.MeshStandardMaterial({map:blTex,alphaTest:.5,side:THREE.DoubleSide,roughness:1}),0,0.77,0.04,{cast:true},rack);
+let blanketLabel=null;
+function redrawBlanket(){
+  const g=blCanvas.getContext("2d"); g.clearRect(0,0,blCanvas.width,blCanvas.height);
+  const rows=NET.blanket.slice(-BL_PANELS*BL_ROWS);
+  g.save(); g.scale(BL_CELL/CELL,BL_CELL/CELL);
+  rows.forEach((r,k)=>{const panel=Math.floor(k/BL_ROWS), rr=k%BL_ROWS; r.s.forEach((st,i)=>drawStitch(st,panel*PER_ROW+(PER_ROW-1-i),rr,g))});
+  g.restore();
+  g.fillStyle="rgba(40,24,14,.6)"; for(let i=1;i<BL_PANELS;i++) g.fillRect(i*PER_ROW*BL_CELL-1,0,2,blCanvas.height);
+  blTex.needsUpdate=true;
+  if(blanketLabel){rack.remove(blanketLabel)}
+  blanketLabel=labelSprite(NET.total? `Circle blanket · ${NET.total} row${NET.total===1?"":"s"}` : "Circle blanket"); blanketLabel.position.set(0,1.72,0); blanketLabel.scale.set(0.9,0.225,1); rack.add(blanketLabel);
+}
+
+/* ---------------- networking ---------------- */
+const NET={ws:null,want:false,open:false,full:false,room:"",name:"",me:null,players:new Map(),blanket:[],total:0,lastP:-1,lastSent:0,retry:0};
+const netSend=o=>{if(NET.open&&NET.ws&&NET.ws.readyState===1)NET.ws.send(JSON.stringify(o))};
+function circleStatus(msg){
+  const row=$("circleRow"); if(!row) return; row.hidden=!NET.want&&!NET.full;
+  $("circleName").textContent=NET.room;
+  $("circleCount").textContent=msg||(NET.open?`${NET.players.size+1} knitting`:"Joining…");
+}
+function addPlayer(p){
+  if(NET.players.has(p.id)) removePlayer(p.id,true);
+  const pl=makeAvatar(p); pl.rows=NET.blanket.filter(r=>r.a===p.name).map(r=>r.s).slice(-15);
+  NET.players.set(p.id,pl); drawRemoteKnit(pl); return pl;
+}
+function removePlayer(id){
+  const pl=NET.players.get(id); if(!pl) return; scene.remove(pl.g);
+  pl.g.traverse(o=>{if(o.geometry)o.geometry.dispose(); if(o.material){if(o.material.map)o.material.map.dispose(); o.material.dispose()}});
+  NET.players.delete(id);
+}
+function clearOthers(){for(const id of [...NET.players.keys()]) removePlayer(id)}
+function layoutSeats(){
+  [...NET.players.values()].sort((a,b)=>a.data.seat-b.data.seat).forEach((pl,i)=>{
+    const sp=seatSpot(i); pl.g.position.set(sp.x,0,sp.z); pl.g.rotation.y=Math.atan2(FIRE_C.x-sp.x,FIRE_C.z-sp.z);
+  });
+}
+function netConnect(){
+  if(!WEAVE_SERVER||!NET.want) return;
+  const url=WEAVE_SERVER.replace(/^http/i,"ws")+"/parties/cabin/"+encodeURIComponent(NET.room);
+  let ws; try{ws=new WebSocket(url)}catch(e){circleStatus("Can't reach the circle");return}
+  NET.ws=ws; circleStatus("Joining…");
+  ws.onopen=()=>{NET.open=true; NET.retry=0; netSend({t:"hello",name:NET.name,color:yarnHex(),cur:state.cur})};
+  ws.onmessage=ev=>{let m; try{m=JSON.parse(ev.data)}catch(e){return} onNet(m)};
+  ws.onclose=()=>{
+    NET.open=false; clearOthers(); if(ws!==NET.ws) return;
+    if(NET.want&&!NET.full){NET.retry=Math.min(8000,(NET.retry||500)*2); circleStatus("Reconnecting…"); setTimeout(netConnect,NET.retry)}
+  };
+}
+function onNet(m){
+  const pl=m.id?NET.players.get(m.id):null;
+  switch(m.t){
+    case "welcome":
+      NET.me=m.you; clearOthers(); NET.blanket=m.blanket||[]; NET.total=m.total||0;
+      (m.players||[]).forEach(p=>{if(p.id!==NET.me) addPlayer(p)}); layoutSeats(); redrawBlanket(); rack.visible=true;
+      circleStatus(); toast("You joined "+esc(NET.room), NET.players.size?`${NET.players.size} already by the fire`:"Share the invite so friends can join");
+      break;
+    case "join": addPlayer(m.player); layoutSeats(); circleStatus(); toast(esc(m.player.name)+" pulled up a chair"); tone(659.25,0.6,0.05); tone(880,0.7,0.04,"sine",0.12); break;
+    case "leave": if(pl){toast(esc(pl.data.name)+" headed home"); removePlayer(m.id); layoutSeats(); circleStatus()} break;
+    case "p": if(pl){pl.pt=m.p/100; pl.ty=m.ty} break;
+    case "stitch": if(pl){pl.data.cur=m.cur||[]; pl.tick=1; pl.pt=0; drawRemoteKnit(pl)} break;
+    case "row":
+      NET.blanket.push(m.row); if(NET.blanket.length>BL_PANELS*BL_ROWS) NET.blanket.splice(0,NET.blanket.length-BL_PANELS*BL_ROWS);
+      NET.total=m.total||NET.total+1; redrawBlanket();
+      if(pl){pl.rows.push(m.row.s); if(pl.rows.length>15)pl.rows.shift(); drawRemoteKnit(pl); flare=1; toast(esc(m.row.a)+" finished a row","The circle blanket grows")}
+      break;
+    case "color": if(pl){pl.data.color=m.c; pl.yarnM.color.set(m.c); pl.jumperM.color.set(shade(m.c,.4))} break;
+    case "emote": if(pl){const s=emojiSprite(EMOTES[m.e]||"✨"); s.position.set(0,1.45,0); pl.g.add(s); pl.emotes.push({s,t:0})} break;
+    case "full": NET.full=true; NET.want=false; circleStatus("Circle full"); toast("That circle is full","Try another circle name",true); break;
+  }
+}
+function joinCircle(room,name){
+  NET.room=room; NET.name=name; NET.want=true; NET.full=false; circleStatus(); netConnect();
+}
+function netTick(dt,t){
+  if(NET.open){
+    const q=Math.round(gest.p*100), now=performance.now();
+    if(q!==NET.lastP&&now-NET.lastSent>90){NET.lastP=q;NET.lastSent=now;netSend({t:"p",p:q,ty:gest.type})}
+  }
+  for(const pl of NET.players.values()){
+    pl.p+=(pl.pt-pl.p)*Math.min(1,dt*8); pl.tick=Math.max(0,pl.tick-dt*3);
+    const p=pl.p, ins=ease(p/0.3)*(1-ease((p-0.6)/0.4)), wrap=p>0.3&&p<0.6?Math.sin((p-0.3)/0.3*Math.PI*2):0;
+    pl.nr.rotation.set(-ins*0.35, wrap*0.15, ins*0.4+Math.sin(pl.tick*Math.PI)*0.25);
+    pl.nl.rotation.z=-ins*0.12; pl.nl.rotation.x=ins*0.1;
+    pl.body.position.y=Math.sin(t*1.2+pl.phase)*0.004; pl.head.rotation.z=Math.sin(t*0.5+pl.phase)*0.05;
+    for(let i=pl.emotes.length-1;i>=0;i--){const e=pl.emotes[i]; e.t+=dt; e.s.position.y=1.45+e.t*0.35; e.s.material.opacity=Math.max(0,1-Math.max(0,e.t-1.4)/0.6);
+      if(e.t>2){pl.g.remove(e.s); e.s.material.map.dispose(); e.s.material.dispose(); pl.emotes.splice(i,1)}}
+  }
+}
+
+/* ---------------- sizing ---------------- */
+const trail=$("trail"), tctx=trail.getContext("2d");
+let W=1,H=1,DPR=1;
+function resize(){
+  W=window.innerWidth; H=window.innerHeight; DPR=Math.min(2,window.devicePixelRatio||1);
+  renderer.setSize(W,H,false); trail.width=W*DPR; trail.height=H*DPR; tctx.setTransform(DPR,0,0,DPR,0,0);
+  const aspect=W/H; camera.aspect=aspect; LOOK.x=aspect<1?1.35:0.55; camera.fov=aspect<1?72:58; camera.updateProjectionMatrix();
+  const d=0.6, halfH=d*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)), halfW=halfH*aspect;
+  const s=Math.min(1,(halfW*2*0.96)/0.95);
+  hands.scale.setScalar(s); hands.position.set(0,-halfH*0.3,-d);
+}
+window.addEventListener("resize",resize); resize();
+
+/* ---------------- swipe input & trail ---------------- */
+let stroke=null; const trailPts=[];
+const yarnHex=()=>YARNS[state.color].hex;
+
+trail.addEventListener("pointerdown",e=>{
+  if(!started) return; e.preventDefault(); trail.setPointerCapture?.(e.pointerId);
+  if(gest.mode==="finish") commitPending();
+  stroke=[{x:e.clientX,y:e.clientY}]; trailPts.length=0; trailPts.push({x:e.clientX,y:e.clientY,t:performance.now()});
+  gest.mode="drag"; gest.type=upcoming(1)[0]; gest.dragF=0; gest.on=true;
+});
+trail.addEventListener("pointermove",e=>{
+  if(!stroke) return; const evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];
+  for(const ev of evs){stroke.push({x:ev.clientX,y:ev.clientY}); trailPts.push({x:ev.clientX,y:ev.clientY,t:performance.now()})}
+  const lp=liveProgress(stroke,gest.type); gest.on=lp.on;
+  if(lp.on) gest.dragF=Math.max(gest.dragF*0.98,lp.f);
+});
+const endStroke=()=>{if(!stroke) return; const s=stroke; stroke=null; evaluate(s)};
+trail.addEventListener("pointerup",endStroke); trail.addEventListener("pointercancel",()=>{stroke=null;gest.mode="retreat"});
+
+function evaluate(pts){
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(const p of pts){x0=Math.min(x0,p.x);y0=Math.min(y0,p.y);x1=Math.max(x1,p.x);y1=Math.max(y1,p.y)}
+  if(Math.max(x1-x0,y1-y0)<36 || pts.length<5){gest.mode="retreat";return}
+  const sc=score(pts); if(!sc){gest.mode="retreat";return}
+  const target=gest.type;
+  let best="K"; for(const k in sc) if(sc[k]<sc[best]) best=k;
+  const d=sc[target];
+  if(d<0.22 && (best===target || d<sc[best]+0.03)){
+    gest.pending={t:target,q:d<0.07?"Perfect":d<0.12?"Neat":"Snug"}; gest.mode="finish";
+  } else {
+    gest.mode="retreat"; streak=0; missSound();
+    if(sc[best]<0.16 && best!==target) toast("That was a "+STITCH[best].name.toLowerCase(),"This stitch is a "+STITCH[target].name.toLowerCase(),true);
+    else toast("Dropped it","Follow the needle path on the card",true);
+    renderCard();
+  }
+}
+function commitPending(){
+  const pd=gest.pending; gest.pending=null; gest.mode="idle"; gest.p=0;
+  if(pd) addStitch(pd.t,pd.q);
+}
+function stepGesture(dt){
+  if(gest.mode==="drag"){const goal=Math.min(0.97,phaseP(gest.type,gest.dragF)); gest.p+=(goal-gest.p)*Math.min(1,dt*14)}
+  else if(gest.mode==="finish"){gest.p+=dt*(gest.p<0.6?5:3.2); if(gest.p>=1){gest.p=1; commitPending()}}
+  else if(gest.mode==="retreat"){gest.p-=dt*2.6; if(gest.p<=0){gest.p=0; gest.mode="idle"}}
+}
+
+let rowGlow=0, lastPh=-2;
+function addStitch(t,quality){
+  netSend({t:"stitch",s:{t,c:yarnHex()}});
+  state.cur.push({t,c:yarnHex()}); state.stitches++; streak++; state.best=Math.max(state.best,streak);
+  const c=PER_ROW-state.cur.length; cols[c].sv=1; cols[c].rR=0;
+  clickSound();
+  let sub=streak>2?`${streak} in a row`:"";
+  if(state.cur.length>=PER_ROW){
+    state.rows.push(state.cur); state.cur=[]; state.rowNum++; if(state.rows.length>60) state.rows.splice(0,state.rows.length-60);
+    rowGlow=1; rowSound();
+    if(state.rowNum%4===0){ toast("Row "+state.rowNum+" done","Turn the work · next pattern: "+pattern().name); }
+    else toast("Row "+state.rowNum+" done","Turn the work"+(sub?" · "+sub:""));
+  } else toast(quality+"!",sub);
+  redrawScarf(); renderCard(); persist();
+}
+
+/* ---------------- start ---------------- */
+let started=false;
+function boot(data){
+  const s=loadInitial(data); if(s) state=Object.assign(state,s);
+  renderSwatches(); updateYarnBall(); redrawScarf(); renderCard(); snapCols();
+}
+boot(saved);
+function beginPlay(){
+  started=true; $("intro").hidden=true; initAudio(); if(actx&&actx.state!=="running") actx.resume();
+  if(navigator.wakeLock) navigator.wakeLock.request("screen").catch(()=>{});
+}
+const cleanRoom=v=>String(v||"").toLowerCase().replace(/[^a-z0-9-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,24);
+(function setupJoin(){
+  let nm="", rm=cleanRoom(decodeURIComponent((location.hash||"").slice(1)));
+  try{nm=localStorage.getItem("weave-name")||""}catch(e){}
+  if(rm.length<3) rm="cosy-"+Math.random().toString(36).slice(2,6);
+  $("nameInput").value=nm||"Knitter"; $("roomInput").value=rm;
+  if(!WEAVE_SERVER){
+    $("circleBtn").disabled=true; $("joinForm").hidden=true;
+    const n=$("circleNote"); n.hidden=false; n.textContent="Knitting circles open once the game server is set up. Knit alone for now.";
+  }
+})();
+$("startBtn").addEventListener("click",beginPlay);
+$("circleBtn").addEventListener("click",()=>{
+  const name=$("nameInput").value.trim().slice(0,16)||"Knitter", room=cleanRoom($("roomInput").value);
+  if(room.length<3){$("roomInput").focus(); toast("Pick a circle name","3 or more letters, numbers or dashes",true); return}
+  try{localStorage.setItem("weave-name",name)}catch(e){}
+  try{history.replaceState(null,"","#"+room)}catch(e){}
+  beginPlay(); joinCircle(room,name);
+});
+$("joinForm").addEventListener("submit",e=>{e.preventDefault(); $("circleBtn").click()});
+$("circlePill").addEventListener("click",()=>{
+  const link=location.origin+location.pathname+"#"+NET.room;
+  const done=()=>toast("Invite link copied","Send it to friends to knit together");
+  try{navigator.clipboard.writeText(link).then(done,()=>toast("Invite link",esc(link)))}catch(e){toast("Invite link",esc(link))}
+});
+document.querySelectorAll(".emote").forEach(b=>b.addEventListener("click",()=>{
+  const e=b.dataset.e; netSend({t:"emote",e});
+  const f=document.createElement("div"); f.className="float-emote"; f.textContent=EMOTES[e]; document.body.appendChild(f); setTimeout(()=>f.remove(),1700);
+}));
+
+/* ---------------- loop ---------------- */
+const warmEl=document.getElementById("warm");
+const reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const clock=new THREE.Clock(); let time=0;
+function frame(){
+  const dt=Math.min(0.05,clock.getDelta()); time+=dt;
+  const warm=Math.min(1,streak/10);
+
+  // camera breathing
+  const sway=reduce?0:1;
+  camera.position.set(CAM_BASE.x+Math.sin(time*.35)*0.015*sway, CAM_BASE.y+Math.sin(time*.9)*0.008*sway, CAM_BASE.z);
+  camera.lookAt(LOOK.x+Math.sin(time*.23)*0.05*sway, LOOK.y, LOOK.z);
+
+  // fire
+  flare=Math.max(0,flare-dt*4);
+  const flick=0.78+0.1*Math.sin(time*7.1)+0.07*Math.sin(time*13.7+1)+0.05*Math.sin(time*23.3)+0.07*Math.random();
+  const fi=(2.1+warm*1.3+rowGlow*1.4+flare*1.6)*flick;
+  fireLight.intensity=fi; fireFill.intensity=0.5*flick+flare*0.5;
+  fireLight.position.set(Math.sin(time*3.1)*0.07+(Math.random()-.5)*0.04, 0.5+Math.sin(time*5.3)*0.05+(Math.random()-.5)*0.03, -2.3);
+  pool.material.opacity=0.16+0.12*flick+flare*0.12;
+  if(warmEl) warmEl.style.opacity=(0.55+0.35*(flick-0.78)/0.3+flare*0.3).toFixed(3);
+  catBody.scale.y=0.11+Math.sin(time*1.6)*0.004; catHead.position.y=0.08+Math.sin(time*1.6)*0.002;
+  coals.material.color.setRGB(1,0.32+0.12*flick,0.08);
+  for(const s of flames){
+    const u=s.userData; u.life+=dt/u.max;
+    if(u.life>=1) respawnFlame(s,warm);
+    const l=u.life, wob=Math.sin(time*6+u.x*20)*0.03*l;
+    s.position.set(u.x*(1-l*.7)+wob, 0.17+l*u.spd*0.75, u.z);
+    const sz=(0.32-l*0.22)*(1+warm*.35+flare*.25); s.scale.set(sz*0.8,sz*1.15,1);
+    s.material.color.setRGB(1,0.85-l*0.6,0.45-l*0.42);
+    s.material.opacity=Math.sin(Math.min(1,l*1.4)*Math.PI)*0.55;
+  }
+  for(let i=0;i<EMB;i++){const e=emb[i]; e.life+=dt;
+    if(e.life>2.4 || embPos[i*3+1]<-1){e.life=0;embPos[i*3]=rnd(-.3,.3);embPos[i*3+1]=0.25;embPos[i*3+2]=-2.66+rnd(-.08,.08);e.vx=rnd(-.08,.08);e.vy=rnd(.25,.6)*(1+warm*.6)}
+    embPos[i*3]+=(e.vx+Math.sin(time*2+i)*0.05)*dt; embPos[i*3+1]+=e.vy*dt; if(embPos[i*3+1]>1.0) embPos[i*3+1]=-5;}
+  embGeo.attributes.position.needsUpdate=true;
+  candleFlames.forEach((f,i)=>{const k=0.9+0.1*Math.sin(time*9+i*2)+0.05*Math.random();f.scale.set(.05*k,.085*k,1)});
+
+  // snow
+  for(let i=0;i<SNOW;i++){snowPos[i*3+1]-=snowVel[i]*dt; snowPos[i*3]+=Math.sin(time+i)*0.02*dt;
+    if(snowPos[i*3+1]<wy-wh/2){snowPos[i*3+1]=wy+wh/2;snowPos[i*3]=wx+rnd(-ww/2,ww/2)}}
+  snowGeo.attributes.position.needsUpdate=true;
+
+  // steam
+  for(const s of steam){const u=s.userData; u.t=(u.t+dt*0.25)%1;
+    s.position.set(MUG.x+Math.sin(u.t*6+time)*0.02,MUG.y+0.07+u.t*0.35,MUG.z); const z=0.05+u.t*0.12; s.scale.set(z,z,1);
+    s.material.opacity=Math.sin(u.t*Math.PI)*0.12;}
+
+  // hands
+  rowGlow=Math.max(0,rowGlow-dt*0.8);
+  stepGesture(dt);
+  hands.rotation.z=Math.sin(time*0.8)*0.008*sway;
+  ball.rotation.y+=dt*0.2;
+  animateHands(dt,time,sway);
+  netTick(dt,time);
+  const ph=gest.p>0.01?phaseOf(gest.p):-1;
+  if(ph!==lastPh){lastPh=ph; document.querySelectorAll("#phases span").forEach((el,i)=>{el.classList.toggle("on",i===ph);el.classList.toggle("done",ph>i)})}
+
+  renderer.render(scene,camera);
+
+  // swipe trail
+  tctx.clearRect(0,0,W,H);
+  const now=performance.now();
+  while(trailPts.length && now-trailPts[0].t>260 && !stroke) trailPts.shift();
+  while(trailPts.length>2 && now-trailPts[0].t>600) trailPts.shift();
+  if(trailPts.length>1){
+    const c=(stroke&&!gest.on)?"#f09a8c":yarnHex(); tctx.lineCap="round"; tctx.lineJoin="round";
+    tctx.shadowColor=c; tctx.shadowBlur=14;
+    for(let i=1;i<trailPts.length;i++){
+      const a=trailPts[i-1], b=trailPts[i], age=(now-b.t)/(stroke?600:260), k=Math.max(0,1-age);
+      tctx.strokeStyle=c; tctx.globalAlpha=0.35+0.65*k; tctx.lineWidth=2+9*k;
+      tctx.beginPath(); tctx.moveTo(a.x,a.y); tctx.lineTo(b.x,b.y); tctx.stroke();
+    }
+    tctx.shadowBlur=0; tctx.globalAlpha=1;
+    const h=trailPts[trailPts.length-1]; if(stroke){tctx.fillStyle="#fff8ea";tctx.beginPath();tctx.arc(h.x,h.y,5,0,7);tctx.fill()}
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>

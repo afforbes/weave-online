@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "weave-online-server",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-10-01",
+  "durable_objects": {
+    "bindings": [{ "name": "Cabin", "class_name": "Cabin" }]
+  },
+  // SQLite-backed Durable Objects work on the Workers Free plan
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Cabin"] }]
+}
