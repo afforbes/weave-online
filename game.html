@@ -71,6 +71,25 @@ body{background:var(--night);color:var(--wool);font-family:var(--body);overflow:
   font:600 .7rem var(--body);letter-spacing:.06em;cursor:pointer;display:grid;place-items:center}
 .icon-btn svg{width:20px;height:20px}
 
+.card.danger{border-color:rgba(240,110,90,.6);box-shadow:0 0 0 2px rgba(200,40,30,.35),0 8px 30px rgba(0,0,0,.45)}
+.card.danger .card-name{color:var(--rose)}
+.fight{position:fixed;left:50%;transform:translateX(-50%);top:calc(176px + env(safe-area-inset-top,0px));display:flex;align-items:center;gap:14px;
+  padding:8px 14px;border-radius:14px;background:var(--bark);border:1px solid rgba(240,110,90,.4);pointer-events:none}
+.fbar{display:flex;align-items:center;gap:8px;font-size:.66rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--wool-dim)}
+.fbar i{display:block;width:110px;height:8px;border-radius:4px;background:rgba(255,220,180,.12);overflow:hidden}
+.fbar b{display:block;height:100%;background:var(--rose);transform-origin:left;transition:transform .25s}
+.hearts{display:flex;gap:3px;font-size:1rem;color:rgba(255,220,180,.2)}
+.hearts .full{color:var(--rose)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+#hurt{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 50% 50%,transparent 40%,rgba(160,0,0,.55) 100%)}
+#hurt svg{width:100%;height:100%}
+#hurt path{fill:none;stroke:rgba(120,0,0,.75);stroke-width:2.2;stroke-linecap:round;vector-effect:non-scaling-stroke;stroke-width:10px}
+#hurt.on{animation:hurt 1s ease-out}
+@keyframes hurt{0%{opacity:1}100%{opacity:0}}
+.ko{position:fixed;inset:0;display:grid;place-items:center;background:#000;opacity:0;transition:opacity .6s;pointer-events:none}
+.ko.on{opacity:.92}
+.ko p{font-family:var(--display);font-weight:800;font-size:1.6rem;color:var(--wool);text-align:center;padding:0 24px}
+@media (prefers-reduced-motion: reduce){#hurt.on{animation-duration:.4s}}
 .toast{position:fixed;left:50%;top:52%;transform:translate(-50%,-50%);pointer-events:none;text-align:center;
   font-family:var(--display);font-weight:800;font-size:1.7rem;color:var(--wool);text-shadow:0 3px 18px rgba(0,0,0,.6),0 0 24px rgba(255,150,70,.5);
   opacity:0;transition:opacity .25s, transform .35s;white-space:nowrap}
@@ -149,6 +168,12 @@ body{background:var(--night);color:var(--wool);font-family:var(--body);overflow:
   </div>
 </div>
 
+<div class="fight" id="fight" hidden>
+  <div class="fbar"><span>Bear</span><i><b id="bearBar"></b></i></div>
+  <div class="hearts" id="hearts"></div>
+</div>
+<div id="hurt" aria-hidden="true"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M30 8 L58 92 M42 4 L70 90 M54 6 L80 86"/></svg></div>
+<div class="ko" id="ko" hidden><p>The bear knocked you flat.</p></div>
 <div class="toast" id="toast"></div>
 
 <div class="hud bottom">
@@ -345,6 +370,7 @@ YARNS.forEach((y,i)=>{const b=document.createElement("button");b.className="sw";
 function renderSwatches(){[...sw.children].forEach((b,i)=>b.setAttribute("aria-pressed",String(i===state.color)))}
 
 function renderCard(){
+  if(typeof BEAR!=="undefined"&&(bearActive()||BEAR.phase==="dying")){renderFightCard();return}
   const [k,...rest]=upcoming(4);
   const g=glyphPath(k);
   $("gGhost").setAttribute("d",g.d); $("gLive").setAttribute("d",g.d);
@@ -567,7 +593,7 @@ const frameM=M({color:0x5a3a24,map:woodTex});
 add(new THREE.BoxGeometry(ww+0.16,0.08,0.1),frameM,wx,wy+wh/2+0.04,wz);
 add(new THREE.BoxGeometry(ww+0.3,0.07,0.22),frameM,wx,wy-wh/2-0.03,wz+0.05);
 add(new THREE.BoxGeometry(0.08,wh,0.1),frameM,wx-ww/2-0.04,wy,wz); add(new THREE.BoxGeometry(0.08,wh,0.1),frameM,wx+ww/2+0.04,wy,wz);
-add(new THREE.BoxGeometry(0.035,wh,0.06),frameM,wx,wy,wz+0.02); add(new THREE.BoxGeometry(ww,0.035,0.06),frameM,wx,wy,wz+0.02);
+const mullionV=add(new THREE.BoxGeometry(0.035,wh,0.06),frameM,wx,wy,wz+0.02), mullionH=add(new THREE.BoxGeometry(ww,0.035,0.06),frameM,wx,wy,wz+0.02);
 const SNOW=90, snowPos=new Float32Array(SNOW*3), snowVel=[];
 for(let i=0;i<SNOW;i++){snowPos[i*3]=wx+rnd(-ww/2,ww/2);snowPos[i*3+1]=wy+rnd(-wh/2,wh/2);snowPos[i*3+2]=wz-0.01;snowVel.push(rnd(.08,.2))}
 const snowGeo=new THREE.BufferGeometry(); snowGeo.setAttribute("position",new THREE.BufferAttribute(snowPos,3));
@@ -1161,6 +1187,233 @@ function netTick(dt,t){
   }
 }
 
+/* ---------------- the bear ---------------- */
+const HANDS_BASE=new THREE.Vector3();
+const BEAR={phase:"none",t:0,clock:0,triggerAt:10,hp:6,maxHp:6,you:3,maxYou:3,swipeAt:0,wind:0,strike:0,flinch:0,rear:0,gait:0,
+  target:"K",focus:0,focusPt:new THREE.Vector3(),calm:1,shake:0,lunge:0,dieT:0,windowBroken:false,
+  from:new THREE.Vector3(),to:new THREE.Vector3(),goal:new THREE.Vector3(),fwd:new THREE.Vector3()};
+const bearActive=()=>BEAR.phase==="enter"||BEAR.phase==="charge"||BEAR.phase==="fight";
+const bearFighting=()=>BEAR.phase==="fight";
+
+const furTex=canvasTex(256,256,(g,w,h)=>{g.fillStyle="#3e2616";g.fillRect(0,0,w,h);
+  for(let i=0;i<5000;i++){const x=rnd(0,w),y=rnd(0,h),l=rnd(4,12),a=rnd(1.2,1.9),c=rnd(.6,1.25);
+    g.strokeStyle=`rgba(${88*c|0},${56*c|0},${32*c|0},${rnd(.25,.6)})`;g.lineWidth=rnd(.6,1.6);g.beginPath();g.moveTo(x,y);g.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l);g.stroke()}},[3,3]);
+const furM=new THREE.MeshStandardMaterial({map:furTex,bumpMap:furTex,bumpScale:0.02,roughness:1,color:0xffffff});
+const darkM=M({color:0x1a120d,roughness:.9}), noseM=M({color:0x0d0908,roughness:.3}), clawM=M({color:0xd8ccb0,roughness:.5});
+const eyeM=new THREE.MeshStandardMaterial({color:0x0a0604,roughness:.15,emissive:0x2a0800,emissiveIntensity:0.6});
+const gumM=M({color:0x7a2a2a,roughness:.5}), toothM=M({color:0xeee6d2,roughness:.4});
+const bear=new THREE.Group(); bear.visible=false; scene.add(bear);
+const mk=(geo,mat,parent,x,y,z,sx=1,sy=1,sz=1)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m};
+const SPH=new THREE.SphereGeometry(1,20,14);
+const hips=new THREE.Group(); hips.position.set(0,0.62,-0.42); bear.add(hips);          // rearing pivots here
+const torso=new THREE.Group(); torso.position.set(0,0,0.42); hips.add(torso);
+mk(SPH,furM,torso,0,0.12,0,0.5,0.47,0.8); mk(SPH,furM,torso,0,0.36,0.32,0.36,0.3,0.4); mk(SPH,furM,torso,0,0.02,-0.35,0.46,0.44,0.5);
+const head=new THREE.Group(); head.position.set(0,0.36,0.86); torso.add(head);
+mk(SPH,furM,head,0,0,0,0.27,0.24,0.29); mk(SPH,furM,head,0,-0.06,0.24,0.13,0.11,0.17); mk(SPH,noseM,head,0,-0.03,0.4,0.05,0.035,0.035);
+mk(SPH,furM,head,0.17,0.19,-0.03,0.075,0.075,0.04); mk(SPH,furM,head,-0.17,0.19,-0.03,0.075,0.075,0.04);
+mk(SPH,darkM,head,0.17,0.19,-0.01,0.045,0.045,0.03); mk(SPH,darkM,head,-0.17,0.19,-0.01,0.045,0.045,0.03);
+const eyes=[mk(SPH,eyeM,head,0.1,0.06,0.22,0.03,0.03,0.02), mk(SPH,eyeM,head,-0.1,0.06,0.22,0.03,0.03,0.02)];
+const jaw=new THREE.Group(); jaw.position.set(0,-0.12,0.12); head.add(jaw);
+mk(SPH,furM,jaw,0,-0.02,0.12,0.11,0.05,0.16); mk(SPH,gumM,jaw,0,0.015,0.13,0.09,0.03,0.13);
+for(const sx of [-1,1]){const f=new THREE.Mesh(new THREE.ConeGeometry(0.014,0.05,6),toothM); f.position.set(sx*0.06,-0.08,0.33); f.rotation.x=Math.PI; head.add(f);
+  const f2=new THREE.Mesh(new THREE.ConeGeometry(0.012,0.04,6),toothM); f2.position.set(sx*0.055,0.04,0.25); jaw.add(f2)}
+function makeLeg(parent,x,y,z,len,r){
+  const piv=new THREE.Group(); piv.position.set(x,y,z); parent.add(piv);
+  mk(new THREE.CylinderGeometry(r,r*0.85,len,12),furM,piv,0,-len/2,0); mk(SPH,furM,piv,0,0,0,r*1.25,r*1.25,r*1.25);
+  const paw=new THREE.Group(); paw.position.set(0,-len,0.03); piv.add(paw);
+  mk(SPH,furM,paw,0,0,0,r*1.15,r*0.6,r*1.4);
+  for(let i=0;i<4;i++){const c=new THREE.Mesh(new THREE.ConeGeometry(0.012,0.07,6),clawM); c.position.set((i-1.5)*r*0.5,-0.02,r*1.3); c.rotation.x=Math.PI/2+0.5; c.castShadow=true; paw.add(c)}
+  return piv;
+}
+const legFL=makeLeg(torso,0.27,0.0,0.5,0.6,0.12), legFR=makeLeg(torso,-0.27,0.0,0.5,0.6,0.12);
+const legBL=makeLeg(bear,0.3,0.6,-0.42,0.58,0.13), legBR=makeLeg(bear,-0.3,0.6,-0.42,0.58,0.13);
+const wounds=[];
+
+/* blood: droplets fly, then lie as splats; a bloodPool spreads once it falls */
+const bloodM=new THREE.MeshStandardMaterial({color:0x7a0808,roughness:.25,metalness:0}), bloodDark=new THREE.MeshStandardMaterial({color:0x4a0404,roughness:.2});
+const drops=[]; const DROP=new THREE.SphereGeometry(0.014,8,6);
+function bleed(at,dir,n=18){
+  for(let i=0;i<n;i++){
+    let d=drops.length<120?null:drops.shift(); if(!d){d={m:new THREE.Mesh(DROP,bloodM),v:new THREE.Vector3()}; d.m.castShadow=false; scene.add(d.m)}
+    d.m.position.copy(at); d.m.scale.setScalar(rnd(0.6,1.4)); d.v.set(dir.x+rnd(-1.2,1.2),rnd(0.4,2.0),dir.z+rnd(-1.2,1.2)).multiplyScalar(rnd(0.6,1.4)); d.rest=false; drops.push(d);
+  }
+}
+const poolTex=canvasTex(256,256,(g,w,h)=>{g.fillStyle="#fff";g.beginPath();
+  for(let i=0;i<=40;i++){const a=i/40*Math.PI*2, r=80+Math.sin(a*3)*14+Math.sin(a*7+1)*9+rnd(-6,6); const x=128+Math.cos(a)*r,y=128+Math.sin(a)*r; i?g.lineTo(x,y):g.moveTo(x,y)} g.fill();
+  for(let i=0;i<6;i++){g.beginPath();g.arc(128+rnd(-110,110),128+rnd(-110,110),rnd(6,16),0,7);g.fill()}});
+const bloodPool=new THREE.Mesh(new THREE.PlaneGeometry(1.6,1.6),new THREE.MeshStandardMaterial({color:0x4a0404,roughness:.18,alphaMap:poolTex,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}));
+bloodPool.rotation.x=-Math.PI/2; bloodPool.visible=false; bloodPool.receiveShadow=true; scene.add(bloodPool);
+
+/* glass shards and a gust of snow when the window goes */
+const shardM=new THREE.MeshStandardMaterial({color:0xcfe3f0,roughness:.08,metalness:.2,transparent:true,opacity:.55,side:THREE.DoubleSide});
+const shards=[];
+function smashWindow(){
+  if(BEAR.windowBroken) return; BEAR.windowBroken=true;
+  mullionV.visible=false; mullionH.visible=false;
+  for(let i=0;i<34;i++){const m=new THREE.Mesh(new THREE.PlaneGeometry(rnd(0.03,0.09),rnd(0.03,0.08)),shardM);
+    m.position.set(wx+rnd(-ww/2,ww/2),wy+rnd(-wh/2,wh/2),wz+0.05); m.rotation.set(rnd(0,6),rnd(0,6),rnd(0,6)); scene.add(m);
+    shards.push({m,v:new THREE.Vector3(rnd(-0.8,0.8),rnd(-0.2,1.2),rnd(1.5,3.5)),w:new THREE.Vector3(rnd(-8,8),rnd(-8,8),rnd(-8,8)),rest:false})}
+  for(let i=0;i<SNOW;i++){snowPos[i*3+2]=wz+rnd(0.05,0.6)}
+}
+
+/* sounds: roar, crash, swipe, stab, hurt */
+function sfxOK(){return actx&&soundOn&&fireBus&&actx.state==="running"}
+function noiseSrc(dur){const SR=actx.sampleRate,b=actx.createBuffer(1,Math.max(64,SR*dur|0),SR),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;const s=actx.createBufferSource();s.buffer=b;return s}
+function envGain(t,a,hold,rel,peak){const g=actx.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+a);g.gain.setValueAtTime(peak,t+a+hold);g.gain.exponentialRampToValueAtTime(0.0001,t+a+hold+rel);return g}
+function toOut(node,send=0.5){node.connect(fireBus);const s=actx.createGain();s.gain.value=send;node.connect(s).connect(revIn)}
+function roar(dur=1.6,pitch=1,vol=0.55){
+  if(!sfxOK()) return; const t=actx.currentTime+0.02, out=envGain(t,0.12,dur-0.5,0.45,vol);
+  const shaper=actx.createWaveShaper(); const curve=new Float32Array(1024); for(let i=0;i<1024;i++){const x=i/512-1;curve[i]=Math.tanh(x*3.5)} shaper.curve=curve;
+  const mix=actx.createGain(); mix.gain.value=0.5;
+  [[78,0],[117,7],[156,-9]].forEach(([f,det],i)=>{const o=actx.createOscillator();o.type="sawtooth";o.frequency.setValueAtTime(f*pitch*0.8,t);o.frequency.linearRampToValueAtTime(f*pitch*1.15,t+dur*0.35);o.frequency.linearRampToValueAtTime(f*pitch*0.7,t+dur);o.detune.value=det;
+    const lfo=actx.createOscillator();lfo.frequency.value=7+i;const lg=actx.createGain();lg.gain.value=6;lfo.connect(lg).connect(o.frequency);lfo.start(t);lfo.stop(t+dur+0.1);
+    o.connect(mix);o.start(t);o.stop(t+dur+0.1)});
+  const n=noiseSrc(dur+0.1),nb=actx.createBiquadFilter();nb.type="bandpass";nb.frequency.value=500;nb.Q.value=0.8;const ng=actx.createGain();ng.gain.value=0.6;n.connect(nb).connect(ng).connect(mix);n.start(t);
+  mix.connect(shaper);
+  const f1=actx.createBiquadFilter();f1.type="bandpass";f1.frequency.value=380*pitch;f1.Q.value=2;
+  const f2=actx.createBiquadFilter();f2.type="bandpass";f2.frequency.value=850*pitch;f2.Q.value=3;
+  const lp=actx.createBiquadFilter();lp.type="lowpass";lp.frequency.value=2600;
+  shaper.connect(f1).connect(lp); shaper.connect(f2).connect(lp); lp.connect(out); toOut(out,0.6);
+}
+function crash(){
+  if(!sfxOK()) return; const t=actx.currentTime+0.01;
+  const n=noiseSrc(0.8),lp=actx.createBiquadFilter();lp.type="lowpass";lp.frequency.value=4000;const g=envGain(t,0.005,0.05,0.7,0.7);n.connect(lp).connect(g);toOut(g,0.6);n.start(t);
+  for(let i=0;i<30;i++){const o=actx.createOscillator();o.type="sine";o.frequency.value=rnd(2200,7500);const tt=t+rnd(0.02,0.9)*Math.random();const og=envGain(tt,0.002,0,rnd(0.08,0.3),rnd(0.03,0.09));o.connect(og);toOut(og,0.7);o.start(tt);o.stop(tt+0.4)}
+  const th=actx.createOscillator();th.frequency.setValueAtTime(70,t);th.frequency.exponentialRampToValueAtTime(35,t+0.4);const tg=envGain(t,0.01,0,0.5,0.6);th.connect(tg);toOut(tg,0.4);th.start(t);th.stop(t+0.6);
+}
+function whoosh(){if(!sfxOK())return;const t=actx.currentTime;const n=noiseSrc(0.35),bp=actx.createBiquadFilter();bp.type="bandpass";bp.Q.value=1.4;bp.frequency.setValueAtTime(300,t);bp.frequency.exponentialRampToValueAtTime(2200,t+0.28);const g=envGain(t,0.08,0.05,0.2,0.4);n.connect(bp).connect(g);toOut(g,0.3);n.start(t)}
+function stabSfx(){if(!sfxOK())return;const t=actx.currentTime;
+  const n=noiseSrc(0.18),lp=actx.createBiquadFilter();lp.type="lowpass";lp.frequency.value=420;const g=envGain(t,0.004,0.02,0.14,0.8);n.connect(lp).connect(g);toOut(g,0.3);n.start(t);
+  const n2=noiseSrc(0.12),bp=actx.createBiquadFilter();bp.type="bandpass";bp.frequency.value=900;bp.Q.value=5;const g2=envGain(t+0.03,0.01,0.02,0.1,0.35);n2.connect(bp).connect(g2);toOut(g2,0.3);n2.start(t+0.03);
+  tone(2600,0.05,0.08,"triangle")}
+function hurtSfx(){if(!sfxOK())return;const t=actx.currentTime;const o=actx.createOscillator();o.frequency.setValueAtTime(90,t);o.frequency.exponentialRampToValueAtTime(40,t+0.3);const g=envGain(t,0.005,0.02,0.35,0.7);o.connect(g);toOut(g,0.3);o.start(t);o.stop(t+0.45);
+  const n=noiseSrc(0.25),lp=actx.createBiquadFilter();lp.type="lowpass";lp.frequency.value=1200;const g2=envGain(t,0.003,0.02,0.2,0.5);n.connect(lp).connect(g2);toOut(g2,0.2);n.start(t)}
+
+/* fight HUD */
+function renderFightHud(){
+  const f=$("fight"); f.hidden=!(bearActive()||BEAR.phase==="dying");
+  $("bearBar").style.transform=`scaleX(${Math.max(0,BEAR.hp/BEAR.maxHp)})`;
+  $("hearts").innerHTML=Array.from({length:BEAR.maxYou},(_,i)=>`<span class="${i<BEAR.you?"full":""}" aria-hidden="true">♥</span>`).join("")+`<span class="sr">${BEAR.you} of ${BEAR.maxYou} lives</span>`;
+}
+function renderFightCard(){
+  const k=BEAR.target, g=glyphPath(k);
+  $("gGhost").setAttribute("d",g.d); $("gLive").setAttribute("d",g.d); $("gArrow").setAttribute("d",g.arrow);
+  $("gStart").setAttribute("cx",g.start[0]); $("gStart").setAttribute("cy",g.start[1]);
+  const dying=BEAR.phase==="dying";
+  $("cName").textContent=bearFighting()?"Stab!":dying?"Got it!":"A bear!";
+  $("phases").innerHTML=bearFighting()?`<span class="on">${STITCH[k].name} move</span><span>Quick</span>`:dying?`<span class="done">It's going down</span>`:`<span class="on">Brace yourself</span>`;
+  $("queue").innerHTML=""; $("cRow").textContent=bearFighting()?"Before the paw comes down":dying?"Hold steady":"It's coming through the window";
+  $("card").classList.add("danger");
+}
+const pickTarget=()=>{const ks=["K","P","O","C"].filter(k=>k!==BEAR.target);BEAR.target=ks[Math.random()*ks.length|0]};
+
+function startBear(){
+  BEAR.phase="enter"; BEAR.t=0; BEAR.hp=BEAR.maxHp; BEAR.you=BEAR.maxYou; BEAR.rear=0; BEAR.dieT=0; BEAR.flinch=0; BEAR.strike=0; BEAR.wind=0;
+  gest.mode="retreat"; stroke=null;
+  bear.visible=true; bear.rotation.set(0,0,0); bear.position.set(wx,1.1,wz-0.7); BEAR.from.copy(bear.position);
+  BEAR.to.set(wx+0.25,0,-1.75);
+  wounds.forEach(w=>w.parent&&w.parent.remove(w)); wounds.length=0; bloodPool.visible=false; bloodPool.scale.setScalar(0.01);
+  eyes.forEach(e=>e.scale.y=0.03);
+  smashWindow(); crash(); setTimeout(()=>roar(1.7,1,0.6),250); BEAR.shake=0.6; flare=1;
+  cat.userData.flee=0;
+  renderFightCard(); renderFightHud(); toast("A bear!","It smashed through the window",true);
+}
+function bearStab(q){
+  BEAR.hp--; BEAR.flinch=1; BEAR.lunge=1; BEAR.shake=Math.max(BEAR.shake,0.25); stabSfx();
+  // wound on the chest, and spray toward you and the floor
+  const w=new THREE.Mesh(SPH,bloodDark); w.position.set(rnd(-0.22,0.22),rnd(0.0,0.3),0.62+rnd(-0.05,0.05)); w.scale.set(0.035,0.05,0.012); torso.add(w); wounds.push(w);
+  const at=new THREE.Vector3(); w.getWorldPosition(at); const dir=new THREE.Vector3().subVectors(camera.position,at).setY(0).normalize().multiplyScalar(0.8);
+  bleed(at,dir,22);
+  BEAR.swipeAt=Math.max(BEAR.swipeAt,BEAR.t+1.6); BEAR.wind=0;
+  if(BEAR.hp<=0){BEAR.phase="dying"; BEAR.t=0; roar(2.2,0.7,0.5); toast("Got it!","The bear staggers",false); renderFightHud(); renderFightCard(); return}
+  toast(q==="Perfect"?"Deep stab!":"Stab!",`${BEAR.hp} more`); pickTarget(); renderFightCard(); renderFightHud();
+}
+function bearHitsYou(){
+  BEAR.you--; BEAR.shake=1; hurtSfx(); const h=$("hurt"); h.classList.remove("on"); void h.offsetWidth; h.classList.add("on");
+  if(BEAR.you<=0){
+    BEAR.phase="win"; BEAR.t=0; gest.mode="retreat"; stroke=null; roar(2,1.1,0.6);
+    const ko=$("ko"); ko.hidden=false; ko.classList.add("on"); renderFightHud(); return;
+  }
+  toast("Ouch!",`${BEAR.you} ${BEAR.you===1?"life":"lives"} left`,true); renderFightHud();
+}
+function stopBear(){
+  bear.visible=false; BEAR.phase="none"; BEAR.triggerAt=BEAR.clock+25; BEAR.you=BEAR.maxYou;
+  $("card").classList.remove("danger"); renderFightHud(); renderCard();
+}
+const _bv=new THREE.Vector3(), _cam=new THREE.Vector3();
+function bearTick(dt,t){
+  if(started&&!document.hidden) BEAR.clock+=dt;
+  if(BEAR.phase==="none"&&started&&BEAR.clock>=BEAR.triggerAt) startBear();
+  const active=bearActive();
+  BEAR.calm+=((active||BEAR.phase==="win"?0:1)-BEAR.calm)*Math.min(1,dt*3);
+  BEAR.lunge=Math.max(0,BEAR.lunge-dt*3.5); BEAR.flinch=Math.max(0,BEAR.flinch-dt*2.5); BEAR.shake=Math.max(0,BEAR.shake-dt*2);
+  // hands thrust the needles forward on a stab
+  const lg=Math.sin(BEAR.lunge*Math.PI);
+  hands.position.copy(HANDS_BASE); hands.position.z-=0.16*lg*hands.scale.x; hands.position.y+=0.05*lg*hands.scale.x; hands.rotation.x=-0.5*lg;
+  // debris
+  for(const s of shards){if(s.rest)continue; s.v.y-=9.8*dt; s.m.position.addScaledVector(s.v,dt); s.m.rotation.x+=s.w.x*dt; s.m.rotation.y+=s.w.y*dt;
+    if(s.m.position.y<0.006){s.m.position.y=0.006; s.m.rotation.set(-Math.PI/2,0,rnd(0,6)); s.rest=true}}
+  for(const d of drops){if(d.rest)continue; d.v.y-=9.8*dt; d.m.position.addScaledVector(d.v,dt);
+    if(d.m.position.y<0.012){d.m.position.y=0.012; d.rest=true; d.m.scale.set(d.m.scale.x*2.4,0.15,d.m.scale.z*2.4)}}
+  // the cat bolts
+  if(active&&cat.visible){cat.userData.flee=(cat.userData.flee||0)+dt; const f=Math.min(1,cat.userData.flee/0.7); cat.position.set(1.05-f*3.4,Math.sin(f*Math.PI)*0.5,-0.55+f*2.6); if(f>=1)cat.visible=false}
+  if(!bear.visible){BEAR.focus+=(0-BEAR.focus)*Math.min(1,dt*2); return}
+  BEAR.t+=dt; camera.getWorldPosition(_cam);
+  BEAR.goal.set(CAM_BASE.x,0,CAM_BASE.z).addScaledVector(ROCK.fwd,1.3);
+  const walk=(spd)=>{BEAR.gait+=dt*spd; const s=Math.sin(BEAR.gait), c=Math.cos(BEAR.gait);
+    legFL.rotation.x=s*0.6; legFR.rotation.x=-s*0.6; legBL.rotation.x=-s*0.5; legBR.rotation.x=s*0.5; torso.position.y=Math.abs(c)*0.04};
+  const face=(x,z)=>{bear.rotation.y=Math.atan2(x-bear.position.x,z-bear.position.z)};
+  let headLook=true;
+  if(BEAR.phase==="enter"){
+    const k=Math.min(1,BEAR.t/0.9); bear.position.lerpVectors(BEAR.from,BEAR.to,k); bear.position.y=BEAR.from.y*(1-k)+Math.sin(k*Math.PI)*0.45;
+    face(_cam.x,_cam.z); walk(10); BEAR.rear=0.25*Math.sin(k*Math.PI);
+    if(BEAR.t>0.9){BEAR.rear=Math.min(1,(BEAR.t-0.9)/0.3)*0.9; jaw.rotation.x=0.5; legFL.rotation.x=legFR.rotation.x=-1.0}
+    if(BEAR.t>2.0){BEAR.phase="charge"; BEAR.t=0; BEAR.from.copy(bear.position); BEAR.from.y=0; jaw.rotation.x=0}
+    BEAR.focus+=(0.75-BEAR.focus)*Math.min(1,dt*4);
+  } else if(BEAR.phase==="charge"){
+    BEAR.rear+=(0-BEAR.rear)*Math.min(1,dt*6);
+    const k=Math.min(1,BEAR.t/1.5); bear.position.lerpVectors(BEAR.from,BEAR.goal,ease(k)); face(_cam.x,_cam.z); walk(13); jaw.rotation.x=0.15;
+    if(k>=1){BEAR.phase="fight"; BEAR.t=0; BEAR.swipeAt=2.6; pickTarget(); roar(1.4,1.05,0.55); renderFightCard(); renderFightHud(); toast("Stab it!","Swipe the move on the card before it strikes",true)}
+    BEAR.focus+=(0.6-BEAR.focus)*Math.min(1,dt*3);
+  } else if(BEAR.phase==="fight"){
+    BEAR.rear+=(1.05-BEAR.rear)*Math.min(1,dt*4); face(_cam.x,_cam.z);
+    torso.position.y=Math.sin(t*2.2)*0.02; legBL.rotation.x=legBR.rotation.x=0.15;
+    const toSwipe=BEAR.swipeAt-BEAR.t;
+    BEAR.wind=toSwipe<0.9?1-Math.max(0,toSwipe)/0.9:0;
+    if(toSwipe<=0){BEAR.strike=1; whoosh(); bearHitsYou(); BEAR.swipeAt=BEAR.t+rnd(3.4,4.4); BEAR.wind=0}
+    BEAR.strike=Math.max(0,BEAR.strike-dt*3.5);
+    const raise=-1.25, w=BEAR.wind, st=Math.sin(BEAR.strike*Math.PI);
+    legFR.rotation.set(raise-0.9*w+0.8*st, 0, 0.9*w-1.4*st);
+    legFL.rotation.set(raise+0.15*Math.sin(t*3), 0, -0.2);
+    jaw.rotation.x=0.12+0.45*w+0.25*BEAR.flinch;
+    BEAR.focus+=(0.42-BEAR.focus)*Math.min(1,dt*3);
+  } else if(BEAR.phase==="dying"){
+    const k=Math.min(1,BEAR.t/1.8);
+    BEAR.rear+=(0-BEAR.rear)*Math.min(1,dt*3);
+    bear.rotation.z=ease(Math.max(0,(k-0.25)/0.75))*1.45; bear.position.y=0;
+    legFL.rotation.x+=(0.4-legFL.rotation.x)*dt*3; legFR.rotation.set(legFR.rotation.x+(0.2-legFR.rotation.x)*dt*3,0,0);
+    jaw.rotation.x=0.35*(1-k)+0.18; headLook=false; head.rotation.x+=(0.3-head.rotation.x)*dt*2;
+    eyes.forEach(e=>e.scale.y=0.03*(1-k)+0.004);
+    if(k>=1){BEAR.phase="dead"; BEAR.t=0; bloodPool.visible=true; flare=1;
+      torso.getWorldPosition(_bv); bloodPool.position.set(_bv.x,0.017,_bv.z);
+      toast("The bear lies still","Back to your knitting"); $("card").classList.remove("danger"); renderFightHud(); renderCard()}
+    BEAR.focus+=(0.35-BEAR.focus)*Math.min(1,dt*2);
+  } else if(BEAR.phase==="dead"){
+    headLook=false; const k=Math.min(1,BEAR.t/14); bloodPool.scale.setScalar(0.05+ease(k)*1.0);
+    if(Math.random()<dt*0.6&&BEAR.t<14){torso.getWorldPosition(_bv); _bv.y=0.35; bleed(_bv,new THREE.Vector3(0,0,0),2)}
+    BEAR.focus+=(0-BEAR.focus)*Math.min(1,dt*0.8);
+  } else if(BEAR.phase==="win"){
+    BEAR.focus+=(0.5-BEAR.focus)*Math.min(1,dt*2);
+    if(BEAR.t>3.2){const ko=$("ko"); ko.classList.remove("on"); setTimeout(()=>{ko.hidden=true},700); stopBear(); toast("You wake by the fire","The bear has gone, for now")}
+  }
+  hips.rotation.x=-BEAR.rear;
+  if(headLook&&BEAR.phase!=="win"){head.lookAt(_cam); head.rotateX(-0.35*BEAR.flinch)}
+  if(bearActive()&&eyes[0].scale.y<0.03) eyes.forEach(e=>e.scale.y=0.03);
+  torso.position.z=0.42-0.08*BEAR.flinch;
+  head.getWorldPosition(BEAR.focusPt); BEAR.focusPt.y=Math.max(0.6,BEAR.focusPt.y-0.15);
+  if(BEAR.phase==="fight"||BEAR.phase==="enter"||BEAR.phase==="charge"){} // focus handled above
+}
+
 /* ---------------- sizing ---------------- */
 const trail=$("trail"), tctx=trail.getContext("2d");
 let W=1,H=1,DPR=1;
@@ -1170,7 +1423,7 @@ function resize(){
   const aspect=W/H; camera.aspect=aspect; LOOK.x=aspect<1?1.35:0.55; camera.fov=aspect<1?72:58; camera.updateProjectionMatrix();
   const d=0.6, halfH=d*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)), halfW=halfH*aspect;
   const s=Math.min(1.35,(halfW*2)/0.6);
-  hands.scale.setScalar(s); hands.position.set(0,-halfH*(aspect<1?0.28:0.2),-d);
+  hands.scale.setScalar(s); hands.position.set(0,-halfH*(aspect<1?0.28:0.2),-d); HANDS_BASE.copy(hands.position);
 }
 window.addEventListener("resize",resize); resize();
 
@@ -1182,7 +1435,8 @@ trail.addEventListener("pointerdown",e=>{
   if(!started) return; e.preventDefault(); trail.setPointerCapture?.(e.pointerId);
   if(gest.mode==="finish") commitPending();
   stroke=[{x:e.clientX,y:e.clientY}]; trailPts.length=0; trailPts.push({x:e.clientX,y:e.clientY,t:performance.now()});
-  gest.mode="drag"; gest.type=upcoming(1)[0]; gest.dragF=0; gest.on=true; fingerTarget.set(0,0,0);
+  if((bearActive()||BEAR.phase==="dying"||BEAR.phase==="win")&&!bearFighting()){stroke=null;return}
+  gest.mode="drag"; gest.type=bearFighting()?BEAR.target:upcoming(1)[0]; gest.dragF=0; gest.on=true; fingerTarget.set(0,0,0);
 });
 trail.addEventListener("pointermove",e=>{
   if(!stroke) return; const evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];
@@ -1204,9 +1458,11 @@ function evaluate(pts){
   let best="K"; for(const k in sc) if(sc[k]<sc[best]) best=k;
   const d=sc[target];
   if(d<0.22 && (best===target || d<sc[best]+0.03)){
+    if(bearFighting()){gest.mode="retreat"; bearStab(d<0.07?"Perfect":"Neat"); return}
     gest.pending={t:target,q:d<0.07?"Perfect":d<0.12?"Neat":"Snug"}; gest.mode="finish";
   } else {
     gest.mode="retreat"; streak=0; missSound();
+    if(bearFighting()){toast("Missed!","Do the "+STITCH[target].name.toLowerCase()+" move",true); return}
     if(sc[best]<0.16 && best!==target) toast("That was a "+STITCH[best].name.toLowerCase(),"This stitch is a "+STITCH[target].name.toLowerCase(),true);
     else toast("Dropped it","Follow the needle path on the card",true);
     renderCard();
@@ -1290,7 +1546,7 @@ function frame(){
   // camera breathing
   const sway=reduce?0:1;
   // rocking: a slow, slightly lopsided swing, with a creak as the chair turns at each end
-  const w=2*Math.PI/ROCK.period, amp=ROCK.amp*sway;
+  const w=2*Math.PI/ROCK.period, amp=ROCK.amp*sway*BEAR.calm;
   const theta=amp*(Math.sin(time*w)+0.12*Math.sin(2*time*w+0.6));
   const vel=Math.cos(time*w)+0.24*Math.cos(2*time*w+0.6);
   if(amp>0&&Math.sign(vel)!==Math.sign(ROCK.prevVel)&&ROCK.prevVel!==0){ if(Math.random()<0.85) creak(vel<0?1:0.7, vel<0?1:1.18) }
@@ -1299,6 +1555,8 @@ function frame(){
   rocker.rotation.set(0,Math.atan2(-ROCK.fwd.x,-ROCK.fwd.z),0); tilt.rotation.x=-theta; rocker.updateMatrixWorld(true);
   ROCK.eye.set(Math.sin(time*.35)*0.012*sway, CAM_BASE.y+Math.sin(time*.9)*0.006*sway, 0); tilt.localToWorld(ROCK.eye);
   ROCK.look.set(Math.sin(time*.23)*0.05*sway, LOOK.y, -flat); tilt.localToWorld(ROCK.look);
+  if(BEAR.focus>0.001) ROCK.look.lerp(BEAR.focusPt,BEAR.focus);
+  const sk=BEAR.shake*BEAR.shake*0.05*sway; ROCK.eye.x+=(Math.random()-.5)*sk; ROCK.eye.y+=(Math.random()-.5)*sk;
   camera.position.copy(ROCK.eye); camera.lookAt(ROCK.look);
 
   // fire
@@ -1343,6 +1601,7 @@ function frame(){
   ball.rotation.y+=dt*0.2;
   animateHands(dt,time,sway);
   netTick(dt,time);
+  bearTick(dt,time);
   const ph=gest.p>0.01?phaseOf(gest.p):-1;
   if(ph!==lastPh){lastPh=ph; document.querySelectorAll("#phases span").forEach((el,i)=>{el.classList.toggle("on",i===ph);el.classList.toggle("done",ph>i)})}
 
