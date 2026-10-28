@@ -721,33 +721,74 @@ function redrawScarf(){
   scarfTex.needsUpdate=true;
 }
 
-/* fabric: a cloth grid whose top edge hangs from each live loop and settles under gravity */
-const VC=PER_ROW*2, ROWH=0.019, FABW=0.23;
+/* fabric: a verlet cloth pinned to each live loop, pulled by real gravity, folding onto your lap */
+const VC=PER_ROW*2, ROWH=0.019, FABW=0.23, COLW=FABW/VC;
 const fabGeo=new THREE.PlaneGeometry(1,1,VC,MAX_ROWS);
-const fab=new THREE.Mesh(fabGeo,new THREE.MeshStandardMaterial({map:scarfTex,alphaTest:0.5,side:THREE.DoubleSide,roughness:1}));
-fab.frustumCulled=false; fab.receiveShadow=true; hands.add(fab);
+const fab=new THREE.Mesh(fabGeo,new THREE.MeshStandardMaterial({map:scarfTex,bumpMap:scarfTex,bumpScale:0.025,alphaTest:0.5,side:THREE.DoubleSide,roughness:0.95}));
+fab.frustumCulled=false; fab.receiveShadow=true; fab.castShadow=true; hands.add(fab);
 const fabPos=fabGeo.attributes.position, anc=Array.from({length:PER_ROW},()=>V3()), ancRow=new Array(PER_ROW).fill(0);
 const _va=V3();
-function updateFabric(t){
+const NV=(VC+1)*(MAX_ROWS+1), cp=new Float32Array(NV*3), cq=new Float32Array(NV*3), pinned=new Uint8Array(NV);
+const cons=[]; // [i, j, rest, stiffness]
+(function buildConstraints(){
+  const id=(k,v)=>k*(VC+1)+v, diag=Math.hypot(COLW,ROWH);
+  for(let k=0;k<=MAX_ROWS;k++)for(let v=0;v<=VC;v++){
+    if(v<VC) cons.push(id(k,v),id(k,v+1),COLW,1);
+    if(k<MAX_ROWS) cons.push(id(k,v),id(k+1,v),ROWH,1);
+    if(v<VC&&k<MAX_ROWS){cons.push(id(k,v),id(k+1,v+1),diag,0.6); cons.push(id(k,v+1),id(k+1,v),diag,0.6)}
+    if(v<VC-1) cons.push(id(k,v),id(k,v+2),COLW*2,0.25);   // bend: knit resists folding a little
+    if(k<MAX_ROWS-1) cons.push(id(k,v),id(k+2,v),ROWH*2,0.25);
+  }
+})();
+const NC=cons.length/4;
+let clothReady=false, lapY=-0.19;
+const _gq=new THREE.Quaternion(), _grav=V3();
+function anchorFor(v,out){
+  if(v%2){const c=(v-1)/2; out.copy(anc[c]); return ancRow[c]}
+  const c1=v/2-1,c2=v/2;
+  if(c1<0){out.copy(anc[c2]);return ancRow[c2]} if(c2>=PER_ROW){out.copy(anc[c1]);return ancRow[c1]}
+  out.lerpVectors(anc[c1],anc[c2],.5); return Math.min(ancRow[c1],ancRow[c2]);
+}
+function seedCloth(){
   let my=0,mz=0; for(let c=0;c<PER_ROW;c++){my+=anc[c].y;mz+=anc[c].z} my/=PER_ROW; mz/=PER_ROW;
-  for(let v=0;v<=VC;v++){
-    let ar;
-    if(v%2){const c=(v-1)/2;_va.copy(anc[c]);ar=ancRow[c]}
-    else{const c1=v/2-1,c2=v/2;
-      if(c1<0){_va.copy(anc[c2]);ar=ancRow[c2]} else if(c2>=PER_ROW){_va.copy(anc[c1]);ar=ancRow[c1]}
-      else{_va.lerpVectors(anc[c1],anc[c2],.5);ar=Math.min(ancRow[c1],ancRow[c2])}}
-    const rx=(v/VC-0.5)*FABW;
-    for(let k=0;k<=MAX_ROWS;k++){
-      const idx=k*(VC+1)+v;
-      if(k<=ar){fabPos.setXYZ(idx,_va.x,_va.y,_va.z);continue}
-      const dk=k-ar, b=1-Math.exp(-dk/5);
-      fabPos.setXYZ(idx,
-        _va.x+(rx-_va.x)*b,
-        _va.y+(my-_va.y)*b-dk*ROWH,
-        _va.z+(mz+0.035-_va.z)*b+Math.sin(t*0.8+k*0.35)*0.0012*Math.min(1,dk/8));
+  for(let v=0;v<=VC;v++){const ar=anchorFor(v,_va), rx=(v/VC-0.5)*FABW;
+    for(let k=0;k<=MAX_ROWS;k++){const i=(k*(VC+1)+v)*3, dk=Math.max(0,k-ar), b=1-Math.exp(-dk/5);
+      cp[i]=_va.x+(rx-_va.x)*b; cp[i+1]=_va.y+(my-_va.y)*b-dk*ROWH; cp[i+2]=_va.z+(mz-_va.z)*b;
+      cq[i]=cp[i]; cq[i+1]=cp[i+1]; cq[i+2]=cp[i+2];}}
+  clothReady=true;
+}
+function updateFabric(t,dt){
+  if(!clothReady) seedCloth();
+  // gravity is world-down expressed in the hands' frame, so it tracks camera tilt and breathing
+  hands.getWorldQuaternion(_gq).invert(); _grav.set(0,-9.8,0).applyQuaternion(_gq);
+  const steps=2, h=Math.min(dt,1/30)/steps, h2=h*h, damp=0.975;
+  const breeze=Math.sin(t*0.9)*0.15+Math.sin(t*2.3)*0.08;
+  // pins: rows at or above each column's loop follow the needles exactly
+  for(let v=0;v<=VC;v++){const ar=anchorFor(v,_va);
+    for(let k=0;k<=MAX_ROWS;k++){const n=k*(VC+1)+v; pinned[n]=k<=ar?1:0;
+      if(pinned[n]){const i=n*3; cp[i]=cq[i]=_va.x; cp[i+1]=cq[i+1]=_va.y; cp[i+2]=cq[i+2]=_va.z}}}
+  for(let s=0;s<steps;s++){
+    for(let n=0;n<NV;n++){ if(pinned[n]) continue; const i=n*3;
+      const x=cp[i],y=cp[i+1],z=cp[i+2];
+      cp[i]+=(x-cq[i])*damp+(_grav.x+breeze*0.2)*h2; cp[i+1]+=(y-cq[i+1])*damp+_grav.y*h2; cp[i+2]+=(z-cq[i+2])*damp+(_grav.z+breeze)*h2;
+      cq[i]=x; cq[i+1]=y; cq[i+2]=z;
+    }
+    for(let it=0;it<6;it++){
+      for(let c=0;c<NC;c++){
+        const a=cons[c*4], b=cons[c*4+1]; const pa=pinned[a], pb=pinned[b]; if(pa&&pb) continue;
+        const ia=a*3, ib=b*3, dx=cp[ib]-cp[ia], dy=cp[ib+1]-cp[ia+1], dz=cp[ib+2]-cp[ia+2];
+        const len=Math.sqrt(dx*dx+dy*dy+dz*dz)||1e-6, rest=cons[c*4+2];
+        if(cons[c*4+3]<1&&len<rest) continue; // shear and bend only resist stretching, so it can fold softly
+        const f=(len-rest)/len*cons[c*4+3], wa=pa?0:pb?1:0.5, wb=pb?0:pa?1:0.5;
+        cp[ia]+=dx*f*wa; cp[ia+1]+=dy*f*wa; cp[ia+2]+=dz*f*wa;
+        cp[ib]-=dx*f*wb; cp[ib+1]-=dy*f*wb; cp[ib+2]-=dz*f*wb;
+      }
+      // your lap: slopes down toward you, so the scarf pools and slides over your knees
+      for(let n=0;n<NV;n++){ if(pinned[n]) continue; const i=n*3, floor=lapY-Math.max(0,cp[i+2]+0.06)*0.5;
+        if(cp[i+1]<floor){cp[i+1]=floor; cq[i]+=(cp[i]-cq[i])*0.6; cq[i+2]+=(cp[i+2]-cq[i+2])*0.6}}
     }
   }
-  fabPos.needsUpdate=true; fabGeo.computeVertexNormals();
+  fabPos.array.set(cp); fabPos.needsUpdate=true; fabGeo.computeVertexNormals();
 }
 
 /* yarn ball + working yarn that wraps the right needle */
@@ -828,7 +869,7 @@ function animateHands(dt,t,sway){
   newLoop.visible=nl>0.02;
   if(newLoop.visible){onNeedle(needleR,0,newLoop.position);newLoop.quaternion.copy(_qR);newLoop.scale.setScalar(0.5+0.5*nl)}
 
-  updateFabric(t); updateYarn(p,t);
+  updateFabric(t,dt); updateYarn(p,t);
 }
 
 /* ---------------- knitting circle: other players by the fire ---------------- */
